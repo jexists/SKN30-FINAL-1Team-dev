@@ -1,0 +1,157 @@
+{
+  "case_id": "meeting35",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting35-f01",
+      "claim": "6월22일 이름·단계·일정의 제한시범만 허용됐고 실도면·계약서는 제외됩니다.",
+      "sales_deal_id": "deal08-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting35.txt",
+          "start": 103,
+          "end": 200,
+          "quote": "6월 22일에 답을 받았는데, 제한적인 시범만 허용됐어요. 프로젝트 이름과 진행 단계, 요청된 일정과 확정된 일정 정도만 넣을 수 있습니다. 실도면과 계약서는 아직 제외예요.",
+          "segment_ids": [
+            "S0003",
+            "S0004",
+            "S0005"
+          ]
+        },
+        {
+          "path": "transcripts/meeting35.txt",
+          "start": 285,
+          "end": 357,
+          "quote": "관리자가 내려받는 방식은 시험해 봤고 그 결과는 괜찮다고 봤습니다. 그렇다고 모든 자료를 옮겨도 된다는 승인을 받은 건 아닙니다.",
+          "segment_ids": [
+            "S0008",
+            "S0009"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting35-f01"
+    },
+    {
+      "id": "meeting35-f02",
+      "claim": "재무는 제한시범 후 다음달 판단 예정이며 CRM 미체결·고객승인대기2건 유지입니다.",
+      "sales_deal_id": "deal08-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting35.txt",
+          "start": 765,
+          "end": 825,
+          "quote": "재무팀은 제한 시범을 먼저 본 다음 달에 예산을 판단하기로 했어요. 아직 CRM 계약에 서명한 건 없습니다.",
+          "segment_ids": [
+            "S0021",
+            "S0022"
+          ]
+        },
+        {
+          "path": "transcripts/meeting35.txt",
+          "start": 867,
+          "end": 925,
+          "quote": "삼천이백만 원으로 보던 금액은 그대로입니다. 다만 이번 달에 계약한 금액이나 실적으로 보기는 어렵습니다.",
+          "segment_ids": [
+            "S0024",
+            "S0025"
+          ]
+        },
+        {
+          "path": "transcripts/meeting35.txt",
+          "start": 1006,
+          "end": 1071,
+          "quote": "고객 투자위원회 일정이 아직 나오지 않은 프로젝트가 두 건 있어요. 그 두 건도 고객 승인 대기 상태가 그대로입니다.",
+          "segment_ids": [
+            "S0028",
+            "S0029"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting35-f02"
+    },
+    {
+      "id": "meeting35-f03",
+      "claim": "3일 연기된 조사는 실제완료됐고 병가로 재조정 중인1건은 일정미정이며 취소는 없습니다.",
+      "sales_deal_id": "deal08-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting35.txt",
+          "start": 1465,
+          "end": 1514,
+          "quote": "사흘 뒤에 조사를 했고, 완료 확인도 받았습니다. 그 건은 이제 조사 완료로 봐야 해요.",
+          "segment_ids": [
+            "S0039",
+            "S0040"
+          ]
+        },
+        {
+          "path": "transcripts/meeting35.txt",
+          "start": 1580,
+          "end": 1652,
+          "quote": "반면 병가 때문에 재조정 중인 한 건은 아직 새 날짜가 없습니다. 같은 사유로 묶으면 안 되고, 이 건은 일정 대기로 봐 주세요.",
+          "segment_ids": [
+            "S0044",
+            "S0045"
+          ]
+        },
+        {
+          "path": "transcripts/meeting35.txt",
+          "start": 1742,
+          "end": 1785,
+          "quote": "네, 취소된 건은 없습니다. 하나는 완료됐고, 하나는 날짜를 기다리고 있어요.",
+          "segment_ids": [
+            "S0048",
+            "S0049"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting35-f03"
+    },
+    {
+      "id": "meeting35-f04",
+      "claim": "백도하는6월29일까지6개프로젝트 제한시범 평가항목을 정리할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting35.txt",
+          "start": 2025,
+          "end": 2105,
+          "quote": "제가 6월 29일까지 여섯 프로젝트를 대상으로 확인 항목을 정리할 예정입니다. 각 프로젝트에서 아직 남은 조건을 찾아낼 수 있는지 보려고 해요.",
+          "segment_ids": [
+            "S0056",
+            "S0057"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting35-f04"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting35-f01",
+    "meeting35-f02",
+    "meeting35-f03",
+    "meeting35-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

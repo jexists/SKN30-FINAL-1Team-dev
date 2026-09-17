@@ -1,0 +1,184 @@
+{
+  "case_id": "daily07",
+  "report_kind": "daily",
+  "facts": [
+    {
+      "id": "daily07-f01",
+      "claim": "20건 시범의 회신 중앙값은 0.8일이고 승인 누락은 0건입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "20건 시범의 회신 중앙값은 0.8일이고 승인 누락은 0건입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f02",
+      "claim": "시범은 통과했지만 자동 갱신 삭제 조항 검토가 남아 계약은 미체결입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "시범은 통과했지만 자동 갱신 삭제 조항 검토가 남아 계약은 미체결입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f03",
+      "claim": "교육은 두 회차 운영안 검토 단계이며 참석자·비용 승인은 미확정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "교육은 두 회차 운영안 검토 단계이며 참석자·비용 승인은 미확정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f04",
+      "claim": "시간 단축의 전체 원인을 CRM으로 단정할 수 없으며 생산팀 응답 속도 영향도 확인이 필요합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "시간 단축의 전체 원인을 CRM으로 단정할 수 없으며 생산팀 응답 속도 영향도 확인이 필요합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f05",
+      "claim": "교육 완료 기준은 테스트 견적 작성과 승인 요청 실습이며 실제 교육은 아직 진행하지 않았습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "교육 완료 기준은 테스트 견적 작성과 승인 요청 실습이며 실제 교육은 아직 진행하지 않았습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f06",
+      "claim": "영업 담당자는 6월 18일까지 계약서 수정본과 두 회차 교육안을 전달할 예정이며 ERP 연동은 보류 상태를 유지합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[0].common_report.body",
+          "quote": "영업 담당자는 6월 18일까지 계약서 수정본과 두 회차 교육안을 전달할 예정이며 ERP 연동은 보류 상태를 유지합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f07",
+      "claim": "수정 견적은 수신됐지만 지점 인력 부족으로 시범 시작을 보류했고 시험 결과는 없습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "수정 견적은 수신됐지만 지점 인력 부족으로 시범 시작을 보류했고 시험 결과는 없습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f08",
+      "claim": "교육도 운영 담당자 미배정으로 보류하며 담당자2명 배정 가능 여부를 다음 주 확인합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "교육도 운영 담당자 미배정으로 보류하며 담당자2명 배정 가능 여부를 다음 주 확인합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f09",
+      "claim": "현재 보류의 직접 사유는 운영 인력이며 가격 거절·경쟁사 계약은 확인되지 않았습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "현재 보류의 직접 사유는 운영 인력이며 가격 거절·경쟁사 계약은 확인되지 않았습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f10",
+      "claim": "도윤재는 6월 19일까지 담당자2명과 참여시간 배정 가능 여부를 확인할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "도윤재는 6월 19일까지 담당자2명과 참여시간 배정 가능 여부를 확인할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f11",
+      "claim": "6월12일 수정본으로 비식별15건 모두 연결됐고 검색오류 수정은 완료됐습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "6월12일 수정본으로 비식별15건 모두 연결됐고 검색오류 수정은 완료됐습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f12",
+      "claim": "보안 설명서는 수신됐으나 담당자 일정으로 검토 대기이며 실데이터 반입은 아직 허용되지 않았습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "보안 설명서는 수신됐으나 담당자 일정으로 검토 대기이며 실데이터 반입은 아직 허용되지 않았습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f13",
+      "claim": "결제사 테스트 계정이 미발급이므로 지급 완료 연동 검증은 미완료입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "결제사 테스트 계정이 미발급이므로 지급 완료 연동 검증은 미완료입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily07-f14",
+      "claim": "서이든은6월19일까지 보안 검토 재개와 테스트계정 발급 상태를 확인할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[2].common_report.body",
+          "quote": "서이든은6월19일까지 보안 검토 재개와 테스트계정 발급 상태를 확인할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "daily07-f01",
+    "daily07-f02",
+    "daily07-f03",
+    "daily07-f04",
+    "daily07-f05",
+    "daily07-f06",
+    "daily07-f07",
+    "daily07-f08",
+    "daily07-f09",
+    "daily07-f10",
+    "daily07-f11",
+    "daily07-f12",
+    "daily07-f13",
+    "daily07-f14"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "오늘 활동→거래처별 결과→미완료·문제→다음 업무. 원문 반복과 중복 집계를 피합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

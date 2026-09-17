@@ -1,0 +1,167 @@
+{
+  "case_id": "meeting05",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting05-f01",
+      "claim": "CRM은 영업16명·단가수정 팀장2명 권한으로 검토합니다.",
+      "sales_deal_id": "deal05-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting05.txt",
+          "start": 625,
+          "end": 683,
+          "quote": "영업 16명은 CRM을 사용하고, 판매단가를 수정하는 권한은 팀장 2명에게만 두는 방향으로 이해했습니다.",
+          "segment_ids": [
+            "S0014"
+          ]
+        },
+        {
+          "path": "transcripts/meeting05.txt",
+          "start": 695,
+          "end": 758,
+          "quote": "영업 16명은 같은 승인 단가표를 봐야 하지만, 판매단가를 직접 수정하는 사람은 팀장 2명으로 제한하려고 합니다.",
+          "segment_ids": [
+            "S0016"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting05-f01"
+    },
+    {
+      "id": "meeting05-f02",
+      "claim": "실물120박스 중 예약20박스를 제외한 가용재고는100박스이며 로트별 기한 조회가 필요합니다.",
+      "sales_deal_id": "deal05-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting05.txt",
+          "start": 1572,
+          "end": 1628,
+          "quote": "실물은 120박스인데 다른 거래처가 예약한 게 20박스라서, 판매할 수 있는 수량은 100박스입니다.",
+          "segment_ids": [
+            "S0035"
+          ]
+        },
+        {
+          "path": "transcripts/meeting05.txt",
+          "start": 1637,
+          "end": 1696,
+          "quote": "실물 120박스와 예약 20박스를 구분하고, 예약재고를 제외한 가용재고를 100박스로 조회하는 기준이군요.",
+          "segment_ids": [
+            "S0036"
+          ]
+        },
+        {
+          "path": "transcripts/meeting05.txt",
+          "start": 1934,
+          "end": 1983,
+          "quote": "두 로트의 수량과 각각의 유통기한을 함께 조회할 수 있어야 한다는 조건으로 이해했습니다.",
+          "segment_ids": [
+            "S0043"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting05-f02"
+    },
+    {
+      "id": "meeting05-f03",
+      "claim": "연2,200만 원은 승인 전 검토예산이며 오프라인 단가 확인시각 표시를 요구합니다.",
+      "sales_deal_id": "deal05-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting05.txt",
+          "start": 1223,
+          "end": 1272,
+          "quote": "연 2,200만 원으로 검토 중이고, 부가세는 별도입니다. 아직 승인된 예산은 아닙니다.",
+          "segment_ids": [
+            "S0028",
+            "S0029"
+          ]
+        },
+        {
+          "path": "transcripts/meeting05.txt",
+          "start": 989,
+          "end": 1029,
+          "quote": "오프라인 상태라면 적어도 마지막 단가를 언제 확인했는지는 보여야 합니다.",
+          "segment_ids": [
+            "S0023"
+          ]
+        },
+        {
+          "path": "transcripts/meeting05.txt",
+          "start": 1281,
+          "end": 1338,
+          "quote": "연 2,200만 원은 승인된 예산이 아니라 검토 중인 금액이며, 부가세는 별도인 조건으로 이해했습니다.",
+          "segment_ids": [
+            "S0030"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting05-f03"
+    },
+    {
+      "id": "meeting05-f04",
+      "claim": "장하람은6월5일까지 주문8건·단가표2버전을 제공할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting05.txt",
+          "start": 2343,
+          "end": 2405,
+          "quote": "6월 5일까지 테스트 주문 8건과 단가표 2버전을 보내 드릴 예정입니다. 거래처 이름은 가상명으로 바꾸겠습니다.",
+          "segment_ids": [
+            "S0053",
+            "S0054"
+          ]
+        },
+        {
+          "path": "transcripts/meeting05.txt",
+          "start": 2498,
+          "end": 2517,
+          "quote": "자정 전후의 주문을 각각 넣을게요.",
+          "segment_ids": [
+            "S0057"
+          ]
+        },
+        {
+          "path": "transcripts/meeting05.txt",
+          "start": 2422,
+          "end": 2484,
+          "quote": "6월 5일까지 테스트 주문 8건과 단가표 2버전을 보내 주시고, 거래처 이름은 가상명으로 제공하시는 일정입니다.",
+          "segment_ids": [
+            "S0056"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting05-f04"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting05-f01",
+    "meeting05-f02",
+    "meeting05-f03",
+    "meeting05-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

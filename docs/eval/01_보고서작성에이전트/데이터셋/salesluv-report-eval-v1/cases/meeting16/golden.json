@@ -1,0 +1,363 @@
+{
+  "case_id": "meeting16",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting16-f01",
+      "claim": "목록 접근차단은 확인됐으나 공유링크가 다른점포 계정에서 열리는 문제가 발견됐습니다.",
+      "sales_deal_id": "deal07-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 66,
+          "end": 142,
+          "quote": "화면 목록에서 다른 점포가 보이지 않는 것과, 이미 발급된 링크가 다른 계정에서 열리는 것은 별도로 살펴봐야 하는 사안으로 이해했습니다.",
+          "segment_ids": [
+            "S0002"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 334,
+          "end": 407,
+          "quote": "링크를 열 때도 현재 로그인한 계정의 점포 권한을 다시 확인하고, 이미 폐기한 링크는 더 이상 열리지 않는지 따로 검증해야 합니다.",
+          "segment_ids": [
+            "S0008"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting16-f01"
+    },
+    {
+      "id": "meeting16-f02",
+      "claim": "공유권한 문제 해결 전 정산자료 연결을 보류하며 실제정산자료는 미전달입니다.",
+      "sales_deal_id": "deal07-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 654,
+          "end": 711,
+          "quote": "정산 자료는 그 전에는 넣지 않겠습니다. 확정 정산본이라고 해도 외부 점포 계정에서 보이면 안 됩니다.",
+          "segment_ids": [
+            "S0014",
+            "S0015"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 765,
+          "end": 823,
+          "quote": "현재 실제 정산자료를 전달받은 것은 없고, 권한 확인이 끝날 때까지 연결도 보류하는 상태로 이해했습니다.",
+          "segment_ids": [
+            "S0017"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting16-f02"
+    },
+    {
+      "id": "meeting16-f03",
+      "claim": "점주교육 일정·참석자는 미정이고 본사 권한검토 설명만 먼저 요청합니다.",
+      "sales_deal_id": "deal07-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 3571,
+          "end": 3598,
+          "quote": "점주교육 일정도 참석자도 아직 정하지 않았습니다.",
+          "segment_ids": [
+            "S0081"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 3511,
+          "end": 3554,
+          "quote": "먼저 본사 담당자에게 권한 검토 내용을 설명하는 요청부터 진행하면 되겠습니까?",
+          "segment_ids": [
+            "S0079"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting16-f03"
+    },
+    {
+      "id": "meeting16-f04",
+      "claim": "6월15일까지 교차점포 링크거절·폐기링크 차단 결과를 요청합니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 1096,
+          "end": 1156,
+          "quote": "6월 15일까지 다른 점포 계정에서 공유 링크 접근이 거절되는 결과와 폐기한 링크가 차단되는 결과를 주세요.",
+          "segment_ids": [
+            "S0025"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 1028,
+          "end": 1083,
+          "quote": "접근이 거절된 계정과 그때의 시간도 함께 확인할 수 있어야 정보시스템팀이 다시 검토할 수 있겠네요.",
+          "segment_ids": [
+            "S0023"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting16-f04"
+    },
+    {
+      "id": "meeting16-f05",
+      "claim": "비활성화된가상계정1개의기존링크접근도차단하는시험을 요구합니다.",
+      "sales_deal_id": "deal07-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 1408,
+          "end": 1466,
+          "quote": "가상 퇴사계정 하나를 비활성화한 다음, 그 계정이 예전에 받은 링크를 다시 열 수 없는지 시험해 주세요.",
+          "segment_ids": [
+            "S0032"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 1475,
+          "end": 1533,
+          "quote": "가상 퇴사계정 하나를 대상으로, 계정을 비활성화한 뒤 기존 공유 링크 접근까지 차단되는지 확인하겠습니다.",
+          "segment_ids": [
+            "S0033"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting16-f05"
+    },
+    {
+      "id": "meeting16-f06",
+      "claim": "본사계정도담당2점포한정권한이필요하며 담당변경후이전권한회수를 검토합니다.",
+      "sales_deal_id": "deal07-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 1808,
+          "end": 1867,
+          "quote": "담당 점포 두 곳만 볼 수 있어야 하고, 담당이 바뀌면 이전에 맡던 점포 권한이 남는지도 확인해야 합니다.",
+          "segment_ids": [
+            "S0042"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 1876,
+          "end": 1928,
+          "quote": "담당 점포 변경은 바로 반영하는 방식이 아니라 팀장 승인 후에 반영하는 흐름을 검토하시는군요.",
+          "segment_ids": [
+            "S0043"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting16-f06"
+    },
+    {
+      "id": "meeting16-f07",
+      "claim": "정산문서교체는구버전폐기·신버전안내가필요하며 문서공개취소와지급취소는 다릅니다.",
+      "sales_deal_id": "deal07-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 2494,
+          "end": 2548,
+          "quote": "예전 버전은 폐기됐다는 표시가 있어야 하고, 이용자에게는 새 버전이 어디 있는지 안내해야 합니다.",
+          "segment_ids": [
+            "S0058"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 2557,
+          "end": 2610,
+          "quote": "문서 공개를 취소하는 것과 이미 진행된 지급을 취소하는 것은 같은 기능으로 묶으면 안 되겠네요.",
+          "segment_ids": [
+            "S0059"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting16-f07"
+    },
+    {
+      "id": "meeting16-f08",
+      "claim": "가상예상수수료100,000-판촉조정20,000=확정80,000원을조회예시로 사용합니다.",
+      "sales_deal_id": "deal07-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 2882,
+          "end": 2947,
+          "quote": "테스트 화면에서는 예상수수료 100,000원, 판촉비 조정 20,000원, 확정 정산액 80,000원을 보여 주세요.",
+          "segment_ids": [
+            "S0067"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 2948,
+          "end": 2999,
+          "quote": "다만 그 금액은 가상 정산 예시일 뿐이고, 실제 가맹점에 지급되는 금액으로 보면 안 됩니다.",
+          "segment_ids": [
+            "S0068"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting16-f08"
+    },
+    {
+      "id": "meeting16-f09",
+      "claim": "접근거절은자료삭제와구분해안내하되 타점포이름·금액을노출하지않아야합니다.",
+      "sales_deal_id": "deal07-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 3253,
+          "end": 3331,
+          "quote": "접근 거절 안내는 삭제 안내와 구별하고, 그 메시지 안에는 다른 점포 이름이나 다른 점포의 정산금액을 표시하지 않는 방향으로 검토하겠습니다.",
+          "segment_ids": [
+            "S0074"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 3340,
+          "end": 3376,
+          "quote": "차단 사유를 설명하더라도 다른 점포의 정보가 노출되면 안 됩니다.",
+          "segment_ids": [
+            "S0076"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting16-f09"
+    },
+    {
+      "id": "meeting16-f10",
+      "claim": "교육설명은가상점포화면을사용하며 실제점주계정공유는원하지않습니다.",
+      "sales_deal_id": "deal07-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 3879,
+          "end": 3924,
+          "quote": "실제 점주 계정을 공유받지 않고 가상 점포 화면으로 교육 내용을 보여드리겠습니다.",
+          "segment_ids": [
+            "S0087"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 3925,
+          "end": 3979,
+          "quote": "점주가 자기 계정으로 자기 요청을 확인하는 절차는 정책이 정해진 뒤에 교육하는 것으로 두겠습니다.",
+          "segment_ids": [
+            "S0088"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting16-f10"
+    },
+    {
+      "id": "meeting16-f11",
+      "claim": "정보시스템팀은링크차단·가맹지원팀은담당변경을검토하고 구매결정은미확정입니다.",
+      "sales_deal_id": "deal07-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 2005,
+          "end": 2052,
+          "quote": "링크 차단은 정보시스템팀이 확인하고, 담당 점포 변경은 가맹지원팀이 살펴보게 됩니다.",
+          "segment_ids": [
+            "S0046"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 2207,
+          "end": 2227,
+          "quote": "아직 구매를 결정한 상태도 아닙니다.",
+          "segment_ids": [
+            "S0051"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting16-f11"
+    },
+    {
+      "id": "meeting16-f12",
+      "claim": "실정산전달은권한검토·공개책임자지정후가능하며 기한은미정입니다.",
+      "sales_deal_id": "deal07-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 4514,
+          "end": 4557,
+          "quote": "권한 검토와 공개 책임자 지정이 완료되기 전에는 실정산을 전달할 수 없습니다.",
+          "segment_ids": [
+            "S0100"
+          ]
+        },
+        {
+          "path": "transcripts/meeting16.txt",
+          "start": 4558,
+          "end": 4584,
+          "quote": "지금 날짜를 정해 놓고 진행할 상황도 아니에요.",
+          "segment_ids": [
+            "S0101"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting16-f12"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting16-f01",
+    "meeting16-f02",
+    "meeting16-f03",
+    "meeting16-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

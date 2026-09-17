@@ -1,0 +1,160 @@
+{
+  "case_id": "daily12",
+  "report_kind": "daily",
+  "facts": [
+    {
+      "id": "daily12-f01",
+      "claim": "수정제안은 수신됐으나 본사·점주 책임정책 미정으로 구매결정 보류이며 계약 미체결입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "수정제안은 수신됐으나 본사·점주 책임정책 미정으로 구매결정 보류이며 계약 미체결입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily12-f02",
+      "claim": "정산연동은 공개승인 책임·일정 미정으로 보류 유지입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "정산연동은 공개승인 책임·일정 미정으로 보류 유지입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily12-f03",
+      "claim": "교육 일정과 운영정책 회의일은 미정이며 민채원이 회의를 요청할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "교육 일정과 운영정책 회의일은 미정이며 민채원이 회의를 요청할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily12-f04",
+      "claim": "다음달 선행과제는 입력·확인·공개승인 책임정책 결정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[0].common_report.body",
+          "quote": "다음달 선행과제는 입력·확인·공개승인 책임정책 결정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily12-f05",
+      "claim": "6월22일 이름·단계·일정의 제한시범만 허용됐고 실도면·계약서는 제외됩니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "6월22일 이름·단계·일정의 제한시범만 허용됐고 실도면·계약서는 제외됩니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily12-f06",
+      "claim": "재무는 제한시범 후 다음달 판단 예정이며 CRM 미체결·고객승인대기2건 유지입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "재무는 제한시범 후 다음달 판단 예정이며 CRM 미체결·고객승인대기2건 유지입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily12-f07",
+      "claim": "3일 연기된 조사는 실제완료됐고 병가로 재조정 중인1건은 일정미정이며 취소는 없습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "3일 연기된 조사는 실제완료됐고 병가로 재조정 중인1건은 일정미정이며 취소는 없습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily12-f08",
+      "claim": "백도하는6월29일까지6개프로젝트 제한시범 평가항목을 정리할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "백도하는6월29일까지6개프로젝트 제한시범 평가항목을 정리할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily12-f09",
+      "claim": "6월22일 CRM 시연계정 비활성화가 확인됐고 연간제안 거절상태를 유지합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[6].values.body",
+          "quote": "6월22일 CRM 시연계정 비활성화가 확인됐고 연간제안 거절상태를 유지합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily12-f10",
+      "claim": "독립사용 가능 답변은 수신됐으나 PDF설정 검토·인력부족으로 견적도구는 보류입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[7].values.body",
+          "quote": "독립사용 가능 답변은 수신됐으나 PDF설정 검토·인력부족으로 견적도구는 보류입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily12-f11",
+      "claim": "교육은 미실시·보류이며 재검토 날짜는 미정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[8].values.body",
+          "quote": "교육은 미실시·보류이며 재검토 날짜는 미정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily12-f12",
+      "claim": "6월29일까지 영업 담당자가 PDF기본서식·추가설정 항목표를 전달할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[2].common_report.body",
+          "quote": "6월29일까지 영업 담당자가 PDF기본서식·추가설정 항목표를 전달할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "daily12-f01",
+    "daily12-f02",
+    "daily12-f03",
+    "daily12-f04",
+    "daily12-f05",
+    "daily12-f06",
+    "daily12-f07",
+    "daily12-f08",
+    "daily12-f09",
+    "daily12-f10",
+    "daily12-f11",
+    "daily12-f12"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "오늘 활동→거래처별 결과→미완료·문제→다음 업무. 원문 반복과 중복 집계를 피합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

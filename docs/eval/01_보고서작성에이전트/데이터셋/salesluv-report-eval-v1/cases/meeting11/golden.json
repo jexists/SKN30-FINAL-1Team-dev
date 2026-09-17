@@ -1,0 +1,212 @@
+{
+  "case_id": "meeting11",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting11-f01",
+      "claim": "40명 전체 도입은 미승인이고 한 거점 12명 유료 시범으로 견적 재요청합니다.",
+      "sales_deal_id": "deal02-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 150,
+          "end": 219,
+          "quote": "마흔 명 전체 도입은 아직 승인하지 않았어요. 이번에는 한 거점의 열두 명만 유료 시범으로 보고 견적을 다시 받아야 합니다.",
+          "segment_ids": [
+            "S0004",
+            "S0005"
+          ]
+        },
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 382,
+          "end": 470,
+          "quote": "그리고 지난번 메모에 있던 삼천만 원 예산 승인 내용은 이제 맞지 않아요. 예산을 절반으로 줄였다고 해서 원래 금액의 절반이 자동으로 승인되는 것도 아닙니다.",
+          "segment_ids": [
+            "S0010",
+            "S0011"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting11-f01"
+    },
+    {
+      "id": "meeting11-f02",
+      "claim": "API 개발은 시범에서 제외하며 수동 파일 업로드로 시험하고 연동 딜은 보류합니다.",
+      "sales_deal_id": "deal02-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 1641,
+          "end": 1721,
+          "quote": "그 연계에는 이번에 API 개발을 넣지 않겠습니다. 테스트 파일을 사람이 하루 두 번 올리는 방식으로 문의와 주문이 연결되는지만 보려고 합니다.",
+          "segment_ids": [
+            "S0041",
+            "S0042"
+          ]
+        },
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 1871,
+          "end": 1917,
+          "quote": "이번에는 연동 자체를 보류하고, 본도입을 결정하기 전까지는 수동 방식만 보겠습니다.",
+          "segment_ids": [
+            "S0047"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting11-f02"
+    },
+    {
+      "id": "meeting11-f03",
+      "claim": "6월 5일 문의5건·주문10건 자료 전달이 완료됐으며 재전송은 신규 운송이 아닙니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 1098,
+          "end": 1160,
+          "quote": "그리고 지난 6월 5일에 자료는 이미 전달했어요. 문의 흐름 다섯 건과 테스트 주문 열 건이 들어간 파일입니다.",
+          "segment_ids": [
+            "S0028",
+            "S0029"
+          ]
+        },
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 1268,
+          "end": 1353,
+          "quote": "같은 주문번호가 두 번 나온 것은 재전송을 시험하려고 넣은 겁니다. 실제 운송이 하나 더 생긴 것으로 세면 안 되고, 자료 전달 업무 자체는 끝났습니다.",
+          "segment_ids": [
+            "S0033",
+            "S0034"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting11-f03"
+    },
+    {
+      "id": "meeting11-f04",
+      "claim": "12명 시범은 문의20건 중18건 이상에서 담당자·최종답변 검색 성공을 기준으로 합니다.",
+      "sales_deal_id": "deal02-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 744,
+          "end": 796,
+          "quote": "선택한 문의 스무 건 중 열여덟 건 이상에서 다른 사람이 담당자와 마지막 답변을 찾아야 해요.",
+          "segment_ids": [
+            "S0019"
+          ]
+        },
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 922,
+          "end": 999,
+          "quote": "응답시간은 아직 기준 측정이 끝나지 않았어요. 이번 기준에는 넣지 말고, 찾기 성공률과 답변 속도를 하나의 비율처럼 섞지 않았으면 합니다.",
+          "segment_ids": [
+            "S0024",
+            "S0025"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting11-f04"
+    },
+    {
+      "id": "meeting11-f05",
+      "claim": "6월 11일까지 12명·1거점·수동파일 조건의 수정 견적을 요청하며 고객 검토회의 날짜는 미정입니다.",
+      "sales_deal_id": "deal02-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 2666,
+          "end": 2727,
+          "quote": "견적은 열두 명, 한 거점, 수동 파일 방식이라는 세 조건을 문서에 명시해서 6월 11일까지 보내드리겠습니다.",
+          "segment_ids": [
+            "S0067"
+          ]
+        },
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 2953,
+          "end": 3003,
+          "quote": "고객 검토회의 날짜는 아직 미정입니다. 다음 주 월요일로 정해진 것처럼 다루면 안 됩니다.",
+          "segment_ids": [
+            "S0075",
+            "S0076"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting11-f05"
+    },
+    {
+      "id": "meeting11-f06",
+      "claim": "파일 반영 지연 상태에서는 미출고·배송완료를 자동 확정하지 않습니다.",
+      "sales_deal_id": "deal02-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 2231,
+          "end": 2302,
+          "quote": "실제 출고가 있었더라도 파일이 아직 들어오지 않았을 수 있어요. 화면에 정보가 없다는 이유만으로 미출고라고 확정하면 안 됩니다.",
+          "segment_ids": [
+            "S0056",
+            "S0057"
+          ]
+        },
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 2385,
+          "end": 2415,
+          "quote": "배송완료도 자동으로 확정하지 않는 것으로 이해했습니다.",
+          "segment_ids": [
+            "S0059"
+          ]
+        },
+        {
+          "path": "transcripts/meeting11.txt",
+          "start": 2463,
+          "end": 2493,
+          "quote": "자동으로 배송 완료 처리하는 기능은 요구하지 않았어요.",
+          "segment_ids": [
+            "S0062"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting11-f06"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting11-f01",
+    "meeting11-f02",
+    "meeting11-f03",
+    "meeting11-f04",
+    "meeting11-f05"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

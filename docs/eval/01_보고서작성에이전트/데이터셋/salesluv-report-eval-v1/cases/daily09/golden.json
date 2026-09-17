@@ -1,0 +1,160 @@
+{
+  "case_id": "daily09",
+  "report_kind": "daily",
+  "facts": [
+    {
+      "id": "daily09-f01",
+      "claim": "링크2종 차단은 확인됐으나 초기범위를 본사12명으로 축소하고 점주24명은 추후검토합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "링크2종 차단은 확인됐으나 초기범위를 본사12명으로 축소하고 점주24명은 추후검토합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily09-f02",
+      "claim": "범위축소는 점주 운영정책 미정이 원인이며 구매안은 아직 미결정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "범위축소는 점주 운영정책 미정이 원인이며 구매안은 아직 미결정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily09-f03",
+      "claim": "교육은 본사12명 대상안으로 재검토하며 점주교육은 미실시입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "교육은 본사12명 대상안으로 재검토하며 점주교육은 미실시입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily09-f04",
+      "claim": "6월22일까지 본사12명·점주추가 조건 분리 제안서를 요청합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[0].common_report.body",
+          "quote": "6월22일까지 본사12명·점주추가 조건 분리 제안서를 요청합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily09-f05",
+      "claim": "복수대기사유 표시 수정과6건 재확인이 완료됐으나 고객 투자위원회 일정은 미정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "복수대기사유 표시 수정과6건 재확인이 완료됐으나 고객 투자위원회 일정은 미정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily09-f06",
+      "claim": "가상도면에서 관리자외 다운로드 차단·이력은 확인됐고 실자료 반입승인은 결재 중입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "가상도면에서 관리자외 다운로드 차단·이력은 확인됐고 실자료 반입승인은 결재 중입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily09-f07",
+      "claim": "18명·연3,200만 원 제안은 재무검토 중이며 계약과 예산심사일은 미확정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "18명·연3,200만 원 제안은 재무검토 중이며 계약과 예산심사일은 미확정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily09-f08",
+      "claim": "백도하는6월22일까지 보안결재·재무검토 상태를 확인할 예정이며 운영자료는 계속 미반입입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "백도하는6월22일까지 보안결재·재무검토 상태를 확인할 예정이며 운영자료는 계속 미반입입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily09-f09",
+      "claim": "월단위 해지요구를 충족하지 못해 이번 연간CRM 제안은 거절됐고 경쟁사 계약은 미확인입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "월단위 해지요구를 충족하지 못해 이번 연간CRM 제안은 거절됐고 경쟁사 계약은 미확인입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily09-f10",
+      "claim": "견적도구3건 분류수정은 확인됐고 독립사용 가능 여부를 별도 검토합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "견적도구3건 분류수정은 확인됐고 독립사용 가능 여부를 별도 검토합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily09-f11",
+      "claim": "6월22일까지 프로젝트코드 기반 독립사용·견적PDF 반출 가능 여부 답변을 요청합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[2].common_report.body",
+          "quote": "6월22일까지 프로젝트코드 기반 독립사용·견적PDF 반출 가능 여부 답변을 요청합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily09-f12",
+      "claim": "CRM 시연계정 비활성화는 요청 단계이며 견적도구 예시는 별도로 유지합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "CRM 시연계정 비활성화는 요청 단계이며 견적도구 예시는 별도로 유지합니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "daily09-f01",
+    "daily09-f02",
+    "daily09-f03",
+    "daily09-f04",
+    "daily09-f05",
+    "daily09-f06",
+    "daily09-f07",
+    "daily09-f08",
+    "daily09-f09",
+    "daily09-f10",
+    "daily09-f11",
+    "daily09-f12"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "오늘 활동→거래처별 결과→미완료·문제→다음 업무. 원문 반복과 중복 집계를 피합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

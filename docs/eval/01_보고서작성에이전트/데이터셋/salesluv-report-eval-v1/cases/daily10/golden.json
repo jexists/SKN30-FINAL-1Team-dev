@@ -1,0 +1,208 @@
+{
+  "case_id": "daily10",
+  "report_kind": "daily",
+  "facts": [
+    {
+      "id": "daily10-f01",
+      "claim": "6월 22일 CRM 20명·부가세 별도 연 2,400만 원 계약이 양사 서명 완료됐으며 서비스 개시는 7월 1일입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "6월 22일 CRM 20명·부가세 별도 연 2,400만 원 계약이 양사 서명 완료됐으며 서비스 개시는 7월 1일입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f02",
+      "claim": "ERP 연동은 사용권·추가비용 미확정으로 보류하며 예상금액 800만 원은 계약 실적에 포함하지 않습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "ERP 연동은 사용권·추가비용 미확정으로 보류하며 예상금액 800만 원은 계약 실적에 포함하지 않습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f03",
+      "claim": "교육 방식만 두 회차로 합의됐고 날짜·300만 원 교육비 승인은 대기 중입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "교육 방식만 두 회차로 합의됐고 날짜·300만 원 교육비 승인은 대기 중입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f04",
+      "claim": "확정된 것은 2,400만 원의 서명 계약이며 청구·입금·매출 인식은 별도로 미확인입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "확정된 것은 2,400만 원의 서명 계약이며 청구·입금·매출 인식은 별도로 미확인입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f05",
+      "claim": "고은서는 6월 25일까지 20명 권한 목록을 제공하고 초기 전환 대상은 최근 3개월 승인 견적입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "고은서는 6월 25일까지 20명 권한 목록을 제공하고 초기 전환 대상은 최근 3개월 승인 견적입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f06",
+      "claim": "다음 달 교육은 준비 계획이며 일정과 비용 승인은 확인 필요입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "다음 달 교육은 준비 계획이며 일정과 비용 승인은 확인 필요입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f07",
+      "claim": "지점장 회신 확인은 완료됐으나 운영담당자2명 확보는 실패해 미완료입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "지점장 회신 확인은 완료됐으나 운영담당자2명 확보는 실패해 미완료입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f08",
+      "claim": "CRM과 유료 시범은 보류이며 이번 달 이 회사의 신규 계약금액은 0원입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "CRM과 유료 시범은 보류이며 이번 달 이 회사의 신규 계약금액은 0원입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f09",
+      "claim": "API 연동은 보류 유지이며 테스트 주문 재조회는 신규 실적이 아닙니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "API 연동은 보류 유지이며 테스트 주문 재조회는 신규 실적이 아닙니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f10",
+      "claim": "교육 날짜·참석자와 운영인력 재검토 기한은 미정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "교육 날짜·참석자와 운영인력 재검토 기한은 미정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f11",
+      "claim": "다음 미팅의 선행 조건은 운영담당자와 참여시간 확보입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "다음 미팅의 선행 조건은 운영담당자와 참여시간 확보입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f12",
+      "claim": "주문번호·문의유형만 쓰는 제한 시범이 조건부 허용됐고 CRM 계약은 미체결입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[6].values.body",
+          "quote": "주문번호·문의유형만 쓰는 제한 시범이 조건부 허용됐고 CRM 계약은 미체결입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f13",
+      "claim": "지급완료 응답1건은 확인했지만 실패·재시도의 중복지급 방지 검증은 남아 있습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[7].values.body",
+          "quote": "지급완료 응답1건은 확인했지만 실패·재시도의 중복지급 방지 검증은 남아 있습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f14",
+      "claim": "야간지원 검토 범위는 장애 접수·인계이며 상주 상담은 제외하고 비용 승인은 대기합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[8].values.body",
+          "quote": "야간지원 검토 범위는 장애 접수·인계이며 상주 상담은 제외하고 비용 승인은 대기합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f15",
+      "claim": "이번 달 이 회사는 검색검증·제한시범 진전이 있으나 서명 계약금액은0원입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[6].values.body",
+          "quote": "이번 달 이 회사는 검색검증·제한시범 진전이 있으나 서명 계약금액은0원입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily10-f16",
+      "claim": "6월26일까지 영업 담당자가 실패·재시도·중복요청 결제 테스트 계획을 전달할 예정이며 계약결정일은 미정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[2].common_report.body",
+          "quote": "6월26일까지 영업 담당자가 실패·재시도·중복요청 결제 테스트 계획을 전달할 예정이며 계약결정일은 미정입니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "daily10-f01",
+    "daily10-f02",
+    "daily10-f03",
+    "daily10-f04",
+    "daily10-f05",
+    "daily10-f06",
+    "daily10-f07",
+    "daily10-f08",
+    "daily10-f09",
+    "daily10-f10",
+    "daily10-f11",
+    "daily10-f12",
+    "daily10-f13",
+    "daily10-f14",
+    "daily10-f15",
+    "daily10-f16"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "오늘 활동→거래처별 결과→미완료·문제→다음 업무. 원문 반복과 중복 집계를 피합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

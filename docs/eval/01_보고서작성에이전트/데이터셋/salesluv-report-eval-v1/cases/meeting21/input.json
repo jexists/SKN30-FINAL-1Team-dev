@@ -1,0 +1,536 @@
+{
+  "transcript": "서이든: 오늘은 검색 쪽 수정 결과부터 확인하고 싶습니다. 6월 12일에 받은 수정본으로 비식별 상담 자료를 다시 찾아봤는데, 이번에는 열다섯 건이 모두 주문과 연결됐습니다. 전에 나오던 검색 오류도 수정이 끝난 상태로 보입니다.\n영업 담당자: 네, 상담 통합 CRM에서 6월 12일 수정본으로 비식별 데이터 15건의 연결과 검색 오류 수정을 확인한 결과군요. 다만 이는 비식별 자료 검증 결과이며, 운영 중 응답시간 절감이나 실사용 승인을 뜻하지는 않습니다.\n서이든: 그 부분은 구분해야 합니다. 아직 고객정보를 넣어 실제 상담 흐름을 보자는 단계는 아니에요. 보안 설명서는 전달받았지만, 보안 담당자가 일정 때문에 검토를 못 하고 있어서 실제 데이터 반입은 허용되지 않았습니다.\n영업 담당자: 설명서는 수신됐지만 보안 검토는 대기 중이고, 실데이터 반입은 계속 제한된 상태군요. 담당자 복귀 후 검토 재개 여부는 확인할 수 있어도 승인일은 아직 정해지지 않은 것으로 보면 될까요?\n서이든: 네. 복귀 시점과 실제 승인일은 같은 얘기가 아닙니다. 담당자가 다시 검토를 시작할 수 있는지는 확인할 수 있지만, 언제 승인된다고 말할 수는 없어요. 그 전까지는 비식별 자료 범위만 다루겠습니다.\n영업 담당자: 알겠습니다. 그럼 주문·반품 연동 쪽은 지급 상태가 어디까지 확인됐는지 여쭤보겠습니다. 반품 접수 화면 확인과 환불 지급 완료 응답 검증은 별도로 봐야 해서요.\n서이든: 결제사 테스트 계정은 신청만 해 둔 상태고 아직 발급되지 않았습니다. 그래서 주문과 반품 이력 연결 화면은 볼 수 있어도, 지급 완료 연동은 아직 검증하지 못했습니다. 테스트 계정이 없는데 운영 계정을 사용해서 실제 환불을 시험할 생각도 없습니다.\n영업 담당자: 주문 상태와 반품 접수 이력 연결은 확인할 수 있지만, 테스트 계정이 발급되지 않은 현재는 지급 완료 응답 검증이 미완료인 상태군요. 환불 지급 확정은 결제 시스템에서 확인해야 하고요.\n서이든: 제가 확인할 일도 두 가지 있습니다. 6월 19일까지 보안 담당자 쪽에서 검토를 다시 시작할 수 있는지 확인하고, 결제사 테스트 계정 발급 상태도 함께 알아보겠습니다. 두 담당자에게 답을 받아야 현재 상태를 더 분명히 알 수 있어요.\n영업 담당자: 6월 19일까지 보안 검토 재개 가능 여부와 테스트 계정 발급 상태를 확인하시는군요. 그 결과가 승인이나 계정 발급을 보장하는 것은 아니며, 답변 내용에 따라 다음 시험 범위를 판단할 수 있겠습니다.\n서이든: 맞습니다. 보안 쪽 답이 없으면 실데이터 반입은 그대로 막혀 있고, 계정 쪽 답이 없으면 지급 완료 검증도 진행할 수 없습니다. 확인 결과에 따라 가능한 범위만 다시 보죠.\n영업 담당자: 현재 상담 통합 CRM은 비식별 15건 연결과 검색 오류 수정이 완료됐고, 보안 검토와 실데이터 반입은 대기 중입니다. 주문·반품 연동의 지급 완료 응답 검증은 테스트 계정 미발급으로 미완료이며, 6월 19일까지 확인할 결과에 따라 다음 시험 범위를 판단할 수 있습니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "b7afcf40ff86bb57ca7b03ab54b5554ae49dead5f456d65b85bf6f9459b8cc0e",
+    "selected_deal_ids": [
+      "6ca8c414-0109-5efa-b007-5d809037d282",
+      "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 32,
+          "text": "서이든: 오늘은 검색 쪽 수정 결과부터 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 33,
+          "end": 97,
+          "text": "6월 12일에 받은 수정본으로 비식별 상담 자료를 다시 찾아봤는데, 이번에는 열다섯 건이 모두 주문과 연결됐습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 98,
+          "end": 128,
+          "text": "전에 나오던 검색 오류도 수정이 끝난 상태로 보입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 129,
+          "end": 201,
+          "text": "영업 담당자: 네, 상담 통합 CRM에서 6월 12일 수정본으로 비식별 데이터 15건의 연결과 검색 오류 수정을 확인한 결과군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 202,
+          "end": 257,
+          "text": "다만 이는 비식별 자료 검증 결과이며, 운영 중 응답시간 절감이나 실사용 승인을 뜻하지는 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 258,
+          "end": 278,
+          "text": "서이든: 그 부분은 구분해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 279,
+          "end": 314,
+          "text": "아직 고객정보를 넣어 실제 상담 흐름을 보자는 단계는 아니에요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 315,
+          "end": 381,
+          "text": "보안 설명서는 전달받았지만, 보안 담당자가 일정 때문에 검토를 못 하고 있어서 실제 데이터 반입은 허용되지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 382,
+          "end": 437,
+          "text": "영업 담당자: 설명서는 수신됐지만 보안 검토는 대기 중이고, 실데이터 반입은 계속 제한된 상태군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 438,
+          "end": 494,
+          "text": "담당자 복귀 후 검토 재개 여부는 확인할 수 있어도 승인일은 아직 정해지지 않은 것으로 보면 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 495,
+          "end": 502,
+          "text": "서이든: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 503,
+          "end": 530,
+          "text": "복귀 시점과 실제 승인일은 같은 얘기가 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 531,
+          "end": 584,
+          "text": "담당자가 다시 검토를 시작할 수 있는지는 확인할 수 있지만, 언제 승인된다고 말할 수는 없어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 585,
+          "end": 610,
+          "text": "그 전까지는 비식별 자료 범위만 다루겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 611,
+          "end": 625,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 626,
+          "end": 667,
+          "text": "그럼 주문·반품 연동 쪽은 지급 상태가 어디까지 확인됐는지 여쭤보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 668,
+          "end": 708,
+          "text": "반품 접수 화면 확인과 환불 지급 완료 응답 검증은 별도로 봐야 해서요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 709,
+          "end": 752,
+          "text": "서이든: 결제사 테스트 계정은 신청만 해 둔 상태고 아직 발급되지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 753,
+          "end": 807,
+          "text": "그래서 주문과 반품 이력 연결 화면은 볼 수 있어도, 지급 완료 연동은 아직 검증하지 못했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 808,
+          "end": 852,
+          "text": "테스트 계정이 없는데 운영 계정을 사용해서 실제 환불을 시험할 생각도 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 853,
+          "end": 935,
+          "text": "영업 담당자: 주문 상태와 반품 접수 이력 연결은 확인할 수 있지만, 테스트 계정이 발급되지 않은 현재는 지급 완료 응답 검증이 미완료인 상태군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 936,
+          "end": 964,
+          "text": "환불 지급 확정은 결제 시스템에서 확인해야 하고요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 965,
+          "end": 990,
+          "text": "서이든: 제가 확인할 일도 두 가지 있습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 991,
+          "end": 1063,
+          "text": "6월 19일까지 보안 담당자 쪽에서 검토를 다시 시작할 수 있는지 확인하고, 결제사 테스트 계정 발급 상태도 함께 알아보겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1064,
+          "end": 1100,
+          "text": "두 담당자에게 답을 받아야 현재 상태를 더 분명히 알 수 있어요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1101,
+          "end": 1156,
+          "text": "영업 담당자: 6월 19일까지 보안 검토 재개 가능 여부와 테스트 계정 발급 상태를 확인하시는군요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1157,
+          "end": 1220,
+          "text": "그 결과가 승인이나 계정 발급을 보장하는 것은 아니며, 답변 내용에 따라 다음 시험 범위를 판단할 수 있겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1221,
+          "end": 1231,
+          "text": "서이든: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282",
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1232,
+          "end": 1297,
+          "text": "보안 쪽 답이 없으면 실데이터 반입은 그대로 막혀 있고, 계정 쪽 답이 없으면 지급 완료 검증도 진행할 수 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282",
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1298,
+          "end": 1322,
+          "text": "확인 결과에 따라 가능한 범위만 다시 보죠."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282",
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1323,
+          "end": 1397,
+          "text": "영업 담당자: 현재 상담 통합 CRM은 비식별 15건 연결과 검색 오류 수정이 완료됐고, 보안 검토와 실데이터 반입은 대기 중입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282",
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1398,
+          "end": 1482,
+          "text": "주문·반품 연동의 지급 완료 응답 검증은 테스트 계정 미발급으로 미완료이며, 6월 19일까지 확인할 결과에 따라 다음 시험 범위를 판단할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282",
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-15T13:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "92e71d20-e860-5062-adca-7de41b19261b",
+      "name": "모아리빙(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "f411f5bf-9ba6-5a2e-b2a2-7a7a11320229",
+      "name": "서이든(가상)"
+    },
+    "activity": {
+      "id": "df1449cb-491f-59b1-befd-86b8fadd4e55",
+      "starts_at": "2026-06-15T13:00:00+09:00",
+      "title": "검색 오류 해결과 보안 승인 대기"
+    },
+    "deals": [
+      {
+        "id": "6ca8c414-0109-5efa-b007-5d809037d282",
+        "company_id": "company03",
+        "contact_id": "contact03",
+        "title": "상담 통합 CRM",
+        "description": "전화·온라인 상담을 주문과 연결해 중복 문의를 줄이는 고객응대 CRM.",
+        "deal_amount": 18000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "6ca8c414-0109-5efa-b007-5d809037d282",
+        "observed_state": "15건 중14건 연결; 보안 보완·검색오류 재검증"
+      },
+      {
+        "id": "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0",
+        "company_id": "company03",
+        "contact_id": "contact03",
+        "title": "주문·반품 연동",
+        "description": "주문 상태와 반품 접수 이력을 연결하되 환불 지급 확정은 결제 시스템에서 확인하는 연동.",
+        "deal_amount": 6000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0",
+        "observed_state": "환불요청 화면 확인; 지급완료 연동 미검증"
+      }
+    ],
+    "previous_reports": [
+      {
+        "sales_deal_id": "6ca8c414-0109-5efa-b007-5d809037d282",
+        "report_date": "2026-06-01",
+        "body": "상담 접수는 하루 평균150건이며 재문의는 신규 주문과 구분해야 합니다. 보안 승인 전 시범은 비식별 상담15건만 사용하며 실제 주소·결제정보 반입은 허용되지 않았습니다. 시범 핵심은 이전 답변 검색이며 자동 답변 발송과 고객만족도 개선 확정은 범위 밖입니다.",
+        "submission_id": "26740ca5-04fb-5a4e-9070-9409ef3e5f90"
+      },
+      {
+        "sales_deal_id": "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0",
+        "report_date": "2026-06-01",
+        "body": "반품 접수·회수·검수·환불 요청·실제 지급을 분리하고 지급 완료는 결제사 응답으로 확인합니다. 한 주문에 복수 부분반품과 재전송이 가능해 주문금액 전체를 중복 환불하지 않아야 합니다.",
+        "submission_id": "26740ca5-04fb-5a4e-9070-9409ef3e5f90"
+      },
+      {
+        "sales_deal_id": "6ca8c414-0109-5efa-b007-5d809037d282",
+        "report_date": "2026-06-08",
+        "body": "비식별 상담15건 중14건 연결 성공이며 공백이 있는 주문번호1건은 재확인 대상입니다. 영업 담당자는 6월12일까지 주문번호 공백 오류 수정 후15건 전체 재확인 결과를 전달할 예정입니다. 주문번호 앞뒤 공백만 정리하며 전화번호가 같아도 다른 주문을 합치지 않습니다. 일반상담원은 문의·주문번호만 조회하며 결제수단 상세는 제외를 요구합니다. 상담사2명이 각기다른순서로15건을 검색하는 재검증을 계획하며 결과는미수집입니다.",
+        "submission_id": "25b4db6d-d506-5a90-8141-04d2e5697a6a"
+      },
+      {
+        "sales_deal_id": "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0",
+        "report_date": "2026-06-08",
+        "body": "부분반품 요청 화면은 확인했지만 결제사 테스트가 없어 지급 완료 연동은 미검증입니다. 같은반품3회 재전송은1접수,서로다른2품목 반품은2접수로 검증할 계획입니다. 시험주문60,000원에서20,000원 부분반품 요청 후 잔액40,000원을 검증할 계획입니다. 상품판매가격·기지급환불내역 직접수정은 검토범위 밖입니다.",
+        "submission_id": "25b4db6d-d506-5a90-8141-04d2e5697a6a"
+      },
+      {
+        "sales_deal_id": "b7198d85-c5b1-5449-8475-44ad64cbd6a5",
+        "report_date": "2026-06-08",
+        "body": "야간 운영지원은 인계·장애 연락체계 검토이며 상주서비스 계약·금액·시간은 미확정입니다. 야간 접수는다음근무시작시배정안을검토하며 자동접수안내는문의종결이 아닙니다. 야간인계목록에 접수시각·미완료이유·담당부서를 요구하며 개인담당자 미정이 허용됩니다.",
+        "submission_id": "25b4db6d-d506-5a90-8141-04d2e5697a6a"
+      }
+    ],
+    "trade_history": []
+  },
+  "attachments": []
+}

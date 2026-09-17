@@ -1,0 +1,127 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-06-03",
+  "period_start": null,
+  "period_end": null,
+  "sales_deal_id": null,
+  "template_snapshot": {
+    "fields": [
+      {
+        "id": "body",
+        "label": "본문"
+      }
+    ]
+  },
+  "content": {
+    "values": {}
+  },
+  "transcript": null,
+  "guidance": null,
+  "report_sources": {
+    "reports": [
+      {
+        "id": "a0895450-2056-5b09-9139-8327586846f2",
+        "submission_id": "7051e899-e6ea-5455-96bf-6c036217034d",
+        "source_activity_id": "a0895450-2056-5b09-9139-8327586846f2",
+        "report_date": "2026-06-03",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "e87a886e-31a5-5620-860a-527d02055a31",
+        "title": "수강 상담 CRM",
+        "values": {
+          "body": "상담예약·수강신청·결제확인을 구분하고 같은 사람의 복수과정 문의를 등록인원으로 중복 집계하지 않습니다. CRM 대상은 내부상담사10명이고 연1,800만 원은 승인 전 검토액입니다. 테스트상담12건의 담당자·약속한 연락일 누락0건이 기준이며 미정값은 임의로 채우지 않습니다."
+        }
+      },
+      {
+        "id": "a0895450-2056-5b09-9139-8327586846f2",
+        "submission_id": "7051e899-e6ea-5455-96bf-6c036217034d",
+        "source_activity_id": "a0895450-2056-5b09-9139-8327586846f2",
+        "report_date": "2026-06-03",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5",
+        "title": "수강료 결제 연동",
+        "values": {
+          "body": "결제예정과 결제완료, 취소접수와 실제환불을 각각 구분하는 조회 연동을 요구합니다."
+        }
+      },
+      {
+        "id": "d2d98e6c-6e65-567f-bc42-dcefe04b128c",
+        "submission_id": "1273141c-1189-55e1-8d0b-68ec0d864aad",
+        "source_activity_id": "d2d98e6c-6e65-567f-bc42-dcefe04b128c",
+        "report_date": "2026-06-03",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "788723af-dea7-5981-af8c-f268c44bdfa5",
+        "title": "거래처 주문 CRM",
+        "values": {
+          "body": "CRM은 영업16명·단가수정 팀장2명 권한으로 검토합니다. 연2,200만 원은 승인 전 검토예산이며 오프라인 단가 확인시각 표시를 요구합니다."
+        }
+      },
+      {
+        "id": "d2d98e6c-6e65-567f-bc42-dcefe04b128c",
+        "submission_id": "1273141c-1189-55e1-8d0b-68ec0d864aad",
+        "source_activity_id": "d2d98e6c-6e65-567f-bc42-dcefe04b128c",
+        "report_date": "2026-06-03",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+        "title": "재고·유통기한 조회",
+        "values": {
+          "body": "실물120박스 중 예약20박스를 제외한 가용재고는100박스이며 로트별 기한 조회가 필요합니다."
+        }
+      },
+      {
+        "id": "90497bb8-2ffd-5708-9488-60f01767695e",
+        "submission_id": "834abe4d-e501-53d2-ab21-5e1495ec2bbb",
+        "source_activity_id": "90497bb8-2ffd-5708-9488-60f01767695e",
+        "report_date": "2026-06-03",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "e5aeb77a-a489-5410-9ca2-9e1e0e15fc11",
+        "title": "서비스 이력 CRM",
+        "values": {
+          "body": "현장6팀·내근4명이 접수·배정·방문·수리·고객확인 이력을 공유하려고 합니다. CRM 연1,500만 원은 검토액이고 대표 예산승인이 필요합니다."
+        }
+      },
+      {
+        "id": "90497bb8-2ffd-5708-9488-60f01767695e",
+        "submission_id": "834abe4d-e501-53d2-ab21-5e1495ec2bbb",
+        "source_activity_id": "90497bb8-2ffd-5708-9488-60f01767695e",
+        "report_date": "2026-06-03",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "cbef8e0a-62d2-5788-baa4-a0e736551385",
+        "title": "설치장비 대장 연동",
+        "values": {
+          "body": "장비10건으로 설치일·계약별 보증조건 조회를 검토하며 보증 자동승인은 범위 밖입니다."
+        }
+      }
+    ],
+    "meetings": [
+      {
+        "activity_id": "a0895450-2056-5b09-9139-8327586846f2",
+        "common_report": {
+          "body": "문시우는6월5일까지 비식별 상담12건을 제공할 예정입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "d2d98e6c-6e65-567f-bc42-dcefe04b128c",
+        "common_report": {
+          "body": "장하람은6월5일까지 주문8건·단가표2버전을 제공할 예정입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "90497bb8-2ffd-5708-9488-60f01767695e",
+        "common_report": {
+          "body": "류온재는6월5일까지 장비10건·서비스6건을 제공하며 서비스2건은 방문 후 부품대기입니다."
+        },
+        "unassigned_report": null
+      }
+    ],
+    "activities": []
+  },
+  "attachments": []
+}

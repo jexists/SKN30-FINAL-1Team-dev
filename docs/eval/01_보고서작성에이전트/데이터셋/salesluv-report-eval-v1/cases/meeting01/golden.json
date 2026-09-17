@@ -1,0 +1,357 @@
+{
+  "case_id": "meeting01",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting01-f01",
+      "claim": "생산지시가 아닌 견적 버전과 승인 이력 관리가 이번 검토 목적입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 8,
+          "end": 78,
+          "quote": "오늘은 생산지시를 새로 설계하는 자리가 아니라, 견적의 버전과 승인 이력을 어떻게 관리할지 확인하는 자리로 이해하고 왔습니다.",
+          "segment_ids": [
+            "S0001"
+          ]
+        },
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 124,
+          "end": 159,
+          "quote": "생산지시를 이 화면에서 내리는 요구는 현재 없다고 보면 될까요?",
+          "segment_ids": [
+            "S0002"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting01-f01"
+    },
+    {
+      "id": "meeting01-f02",
+      "claim": "견적 회신 중앙값은 2일이며 시범 운영 목표는 1일 이내입니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 711,
+          "end": 779,
+          "quote": "지난달 완료한 견적 스무 건을 기준으로 요청을 받은 시점부터 고객에게 보낸 시점까지를 확인해 보니 중앙값이 이틀이었습니다.",
+          "segment_ids": [
+            "S0014"
+          ]
+        },
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 820,
+          "end": 869,
+          "quote": "시범 운영에서는 같은 기준으로 회신 시간을 보면서 하루 이내인지 확인하는 것이 목표군요.",
+          "segment_ids": [
+            "S0016"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting01-f02"
+    },
+    {
+      "id": "meeting01-f03",
+      "claim": "초기 유료 사용자는 25명이 아니라 내부 영업 20명입니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 1230,
+          "end": 1255,
+          "quote": "초기 유료 사용자는 내부 영업 스무 명입니다.",
+          "segment_ids": [
+            "S0025"
+          ]
+        },
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 1304,
+          "end": 1347,
+          "quote": "현재 사용자 수는 외부 대리점 다섯 명을 제외한 내부 영업 20명으로 봅니다.",
+          "segment_ids": [
+            "S0027"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting01-f03"
+    },
+    {
+      "id": "meeting01-f04",
+      "claim": "CRM 검토 상한은 부가세 별도 연 2,400만 원이며 구매 승인은 나지 않았습니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 1542,
+          "end": 1595,
+          "quote": "2,400만 원은 승인된 예산이 아니라 CRM 기본 도입에 대한 내부 검토 상한으로 보겠습니다.",
+          "segment_ids": [
+            "S0032"
+          ]
+        },
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 1596,
+          "end": 1653,
+          "quote": "ERP 연동비와 교육비는 별도 항목이며, 모든 비용을 그 금액 안에 넣는 조건으로 이해하지 않겠습니다.",
+          "segment_ids": [
+            "S0033"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting01-f04"
+    },
+    {
+      "id": "meeting01-f05",
+      "claim": "ERP 연동 요구는 단가·유효기간 조회이며 원가 수정과 재고 차감은 범위 밖입니다.",
+      "sales_deal_id": "deal01-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 2275,
+          "end": 2323,
+          "quote": "읽기 전용 연동으로 범위를 제한하고, 단가와 유효기간을 조회하는 흐름만 확인하겠습니다.",
+          "segment_ids": [
+            "S0048"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting01-f05"
+    },
+    {
+      "id": "meeting01-f06",
+      "claim": "ERP 테스트 자료 요청 담당자는 고은서이며 전달 기한은 미정입니다.",
+      "sales_deal_id": "deal01-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 2761,
+          "end": 2829,
+          "quote": "고은서님이 ERP 담당자에게 비식별 테스트 품번 세 개와 단가 변경 이력 예시를 요청한 상태이며, 전달 기한은 미정입니다.",
+          "segment_ids": [
+            "S0058"
+          ]
+        },
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 2830,
+          "end": 2873,
+          "quote": "자료가 도착하기 전에는 연동 방식이나 API 제공 여부를 확정하지 않겠습니다.",
+          "segment_ids": [
+            "S0059"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting01-f06"
+    },
+    {
+      "id": "meeting01-f07",
+      "claim": "고은서는 검토 담당자이며 영업본부장 검토와 재무 승인 단계가 남아 있습니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 1789,
+          "end": 1834,
+          "quote": "현재 고은서님은 사용 부서 의견을 모으는 검토 담당자이고 계약 서명자는 아닙니다.",
+          "segment_ids": [
+            "S0037"
+          ]
+        },
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 1835,
+          "end": 1891,
+          "quote": "영업본부장 검토와 재무책임자 예산 승인이 남아 있으며, 오늘 논의만으로 구매가 확정된 것은 아닙니다.",
+          "segment_ids": [
+            "S0038"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting01-f07"
+    },
+    {
+      "id": "meeting01-f08",
+      "claim": "영업 담당자는 6월 4일까지 20명 기준으로 CRM과 ERP 범위를 분리한 제안서를 발송할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 2040,
+          "end": 2067,
+          "quote": "수정한 제안서는 6월 4일까지 발송할 예정입니다.",
+          "segment_ids": [
+            "S0042"
+          ]
+        },
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 2068,
+          "end": 2114,
+          "quote": "CRM과 ERP 조회 연동은 별도 범위로 나누고, 교육 일정은 확정하지 않겠습니다.",
+          "segment_ids": [
+            "S0043"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting01-f08"
+    },
+    {
+      "id": "meeting01-f09",
+      "claim": "CRM에서 수정 중 초안과 승인된 실제 발송본을 구분해야 합니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 407,
+          "end": 462,
+          "quote": "초안과 승인본을 구분하고, 실제 발송된 문서를 기준으로 이력을 확인하는 방향으로 범위를 잡겠습니다.",
+          "segment_ids": [
+            "S0008"
+          ]
+        },
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 616,
+          "end": 658,
+          "quote": "내부 검토안처럼 고객에게 보내지 않은 문서는 발송 이력으로 세지 않겠습니다.",
+          "segment_ids": [
+            "S0012"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting01-f09"
+    },
+    {
+      "id": "meeting01-f10",
+      "claim": "시범 표본은 반복 품목 10건과 신규 가공 품목 10건으로 구성할 계획입니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 938,
+          "end": 978,
+          "quote": "표본은 반복 품목 열 건과 신규 가공 품목 열 건으로 구성하려고 합니다.",
+          "segment_ids": [
+            "S0019"
+          ]
+        },
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 1136,
+          "end": 1177,
+          "quote": "긴급 건을 따로 표시하고 반복 품목과 신규 가공 품목을 구분해 보겠습니다.",
+          "segment_ids": [
+            "S0023"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting01-f10"
+    },
+    {
+      "id": "meeting01-f11",
+      "claim": "단가 조회 실패 시 이전 가격을 현재 확정값처럼 적용해서는 안 됩니다.",
+      "sales_deal_id": "deal01-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 3008,
+          "end": 3044,
+          "quote": "오래된 값을 자동으로 현재 가격에 적용하는 방식은 제외하겠습니다.",
+          "segment_ids": [
+            "S0062"
+          ]
+        },
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 3045,
+          "end": 3113,
+          "quote": "발송을 막을지 담당자 재확인을 받을지는 실제 동작을 보고 판단해야 하며, 오늘 기술적으로 구현됐다고 확정할 수는 없습니다.",
+          "segment_ids": [
+            "S0063"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting01-f11"
+    },
+    {
+      "id": "meeting01-f12",
+      "claim": "다음 미팅에서는 제안서 수신을 먼저 확인하고 ERP 연동은 자료 확보 전 보류합니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 3248,
+          "end": 3308,
+          "quote": "다음에는 제안서 수신을 먼저 확인하고, CRM 단독 범위와 ERP 연동 보류 상태를 분리해 이야기하겠습니다.",
+          "segment_ids": [
+            "S0067"
+          ]
+        },
+        {
+          "path": "transcripts/meeting01.txt",
+          "start": 3345,
+          "end": 3384,
+          "quote": "다음 미팅이 잡혔다는 사실만으로 예산 승인을 전제로 하지는 않겠습니다.",
+          "segment_ids": [
+            "S0068"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting01-f12"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting01-f01",
+    "meeting01-f02",
+    "meeting01-f03",
+    "meeting01-f04",
+    "meeting01-f05",
+    "meeting01-f06",
+    "meeting01-f07",
+    "meeting01-f08"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

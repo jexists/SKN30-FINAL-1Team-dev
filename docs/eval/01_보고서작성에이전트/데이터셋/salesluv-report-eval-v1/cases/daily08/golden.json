@@ -1,0 +1,172 @@
+{
+  "case_id": "daily08",
+  "report_kind": "daily",
+  "facts": [
+    {
+      "id": "daily08-f01",
+      "claim": "6월16일 CRM10명·부가세 별도 연1,800만 원 계약이 양사서명 완료됐고 개시는7월1일 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "6월16일 CRM10명·부가세 별도 연1,800만 원 계약이 양사서명 완료됐고 개시는7월1일 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f02",
+      "claim": "결제연동은 외부조회 권한과 추가사용료 미확정으로 보류하며 CRM 계약에 포함되지 않습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "결제연동은 외부조회 권한과 추가사용료 미확정으로 보류하며 CRM 계약에 포함되지 않습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f03",
+      "claim": "교육안 방식은 검토됐지만 실제교육·날짜·250만 원 비용 승인은 미완료입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "교육안 방식은 검토됐지만 실제교육·날짜·250만 원 비용 승인은 미완료입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f04",
+      "claim": "문시우는6월19일까지 권한목록, 영업 담당자는6월22일까지10명 접근 테스트 결과를 전달할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "문시우는6월19일까지 권한목록, 영업 담당자는6월22일까지10명 접근 테스트 결과를 전달할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f05",
+      "claim": "신규 계약 실적은 CRM1건1,800만 원이며 교육생 결제·연동비·교육비·수금은 포함하지 않습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[0].common_report.body",
+          "quote": "신규 계약 실적은 CRM1건1,800만 원이며 교육생 결제·연동비·교육비·수금은 포함하지 않습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f06",
+      "claim": "가용100박스 수정은 확인됐으나 예약취소 갱신 검증과 운영사용 결정은 남아 있습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "가용100박스 수정은 확인됐으나 예약취소 갱신 검증과 운영사용 결정은 남아 있습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f07",
+      "claim": "창고 장비 예산이 우선 배정되어 CRM 구매는 다음 달 재검토로 미뤄졌습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "창고 장비 예산이 우선 배정되어 CRM 구매는 다음 달 재검토로 미뤄졌습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f08",
+      "claim": "유료 모바일교육은 신청하지 않고 로그인·승인단가·오프라인 표시 안내자료만 요청합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "유료 모바일교육은 신청하지 않고 로그인·승인단가·오프라인 표시 안내자료만 요청합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f09",
+      "claim": "6월19일까지 영업 담당자가 모바일 안내자료를 전달할 예정이며 사용자 의견 회수 기한은 미정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "6월19일까지 영업 담당자가 모바일 안내자료를 전달할 예정이며 사용자 의견 회수 기한은 미정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f10",
+      "claim": "기사표시 수정 후6건 재확인이 완료됐고 CRM은 지급조건 검토로 미체결입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[6].values.body",
+          "quote": "기사표시 수정 후6건 재확인이 완료됐고 CRM은 지급조건 검토로 미체결입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f11",
+      "claim": "누락된 설치일의 원본문서를 찾지 못해 설치일·보증상태 확인이 필요합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[7].values.body",
+          "quote": "누락된 설치일의 원본문서를 찾지 못해 설치일·보증상태 확인이 필요합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f12",
+      "claim": "총액1,500만 원의2회 분납을 요청하며 희망 개시는7월6일이고 조항 합의는 진행 중입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[6].values.body",
+          "quote": "총액1,500만 원의2회 분납을 요청하며 희망 개시는7월6일이고 조항 합의는 진행 중입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily08-f13",
+      "claim": "6월19일까지 영업 담당자가2회분납 지급일·금액을 담은 초안을 전달하며 대장·야간지원은 별도 검토합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[2].common_report.body",
+          "quote": "6월19일까지 영업 담당자가2회분납 지급일·금액을 담은 초안을 전달하며 대장·야간지원은 별도 검토합니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "daily08-f01",
+    "daily08-f02",
+    "daily08-f03",
+    "daily08-f04",
+    "daily08-f05",
+    "daily08-f06",
+    "daily08-f07",
+    "daily08-f08",
+    "daily08-f09",
+    "daily08-f10",
+    "daily08-f11",
+    "daily08-f12",
+    "daily08-f13"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "오늘 활동→거래처별 결과→미완료·문제→다음 업무. 원문 반복과 중복 집계를 피합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

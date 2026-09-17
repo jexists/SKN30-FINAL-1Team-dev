@@ -1,0 +1,127 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-06-01",
+  "period_start": null,
+  "period_end": null,
+  "sales_deal_id": null,
+  "template_snapshot": {
+    "fields": [
+      {
+        "id": "body",
+        "label": "본문"
+      }
+    ]
+  },
+  "content": {
+    "values": {}
+  },
+  "transcript": null,
+  "guidance": null,
+  "report_sources": {
+    "reports": [
+      {
+        "id": "e5e6f145-e35b-5d09-8a1b-9db500f3b45b",
+        "submission_id": "66114797-be03-5911-a86a-3deaaf0a6b9d",
+        "source_activity_id": "e5e6f145-e35b-5d09-8a1b-9db500f3b45b",
+        "report_date": "2026-06-01",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+        "title": "견적·고객관리 CRM",
+        "values": {
+          "body": "견적 회신 중앙값은 2일이며 시범 운영 목표는 1일 이내입니다. 초기 유료 사용자는 25명이 아니라 내부 영업 20명입니다. CRM 검토 상한은 부가세 별도 연 2,400만 원이며 구매 승인은 나지 않았습니다. 고은서는 검토 담당자이며 영업본부장 검토와 재무 승인 단계가 남아 있습니다. CRM에서 수정 중 초안과 승인된 실제 발송본을 구분해야 합니다. 시범 표본은 반복 품목 10건과 신규 가공 품목 10건으로 구성할 계획입니다."
+        }
+      },
+      {
+        "id": "e5e6f145-e35b-5d09-8a1b-9db500f3b45b",
+        "submission_id": "66114797-be03-5911-a86a-3deaaf0a6b9d",
+        "source_activity_id": "e5e6f145-e35b-5d09-8a1b-9db500f3b45b",
+        "report_date": "2026-06-01",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "dccf41cc-9724-5fba-b283-5cde62b35b7b",
+        "title": "ERP 단가 연동",
+        "values": {
+          "body": "ERP 연동 요구는 단가·유효기간 조회이며 원가 수정과 재고 차감은 범위 밖입니다. ERP 테스트 자료 요청 담당자는 고은서이며 전달 기한은 미정입니다. 단가 조회 실패 시 이전 가격을 현재 확정값처럼 적용해서는 안 됩니다."
+        }
+      },
+      {
+        "id": "ea1734ad-2a1a-5baf-8e2b-cf2b4e495bd2",
+        "submission_id": "90a38d4b-50cd-538f-a08c-b7598d6431f4",
+        "source_activity_id": "ea1734ad-2a1a-5baf-8e2b-cf2b4e495bd2",
+        "report_date": "2026-06-01",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "title": "화주 고객관리",
+        "values": {
+          "body": "초기 검토 대상은 세 거점의 영업·화주 응대 40명이며 기사 계정은 제외됩니다. 연 3,000만 원은 승인 전 검토예산이며 회신시간의 현재 기준값은 아직 없습니다."
+        }
+      },
+      {
+        "id": "ea1734ad-2a1a-5baf-8e2b-cf2b4e495bd2",
+        "submission_id": "90a38d4b-50cd-538f-a08c-b7598d6431f4",
+        "source_activity_id": "ea1734ad-2a1a-5baf-8e2b-cf2b4e495bd2",
+        "report_date": "2026-06-01",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "10a6f8f9-0362-5a51-ac53-ccd1b229fee0",
+        "title": "WMS 운송 연계",
+        "values": {
+          "body": "WMS 출고 상태와 고객 인수 완료는 다르며 API 제공 여부는 미확정입니다. 비식별 테스트 주문 10건에 재전송 사례를 포함해 중복 집계를 확인합니다."
+        }
+      },
+      {
+        "id": "9bdaef0b-5b31-589f-aad5-c2784c11520d",
+        "submission_id": "26740ca5-04fb-5a4e-9070-9409ef3e5f90",
+        "source_activity_id": "9bdaef0b-5b31-589f-aad5-c2784c11520d",
+        "report_date": "2026-06-01",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "6ca8c414-0109-5efa-b007-5d809037d282",
+        "title": "상담 통합 CRM",
+        "values": {
+          "body": "상담 접수는 하루 평균150건이며 재문의는 신규 주문과 구분해야 합니다. 보안 승인 전 시범은 비식별 상담15건만 사용하며 실제 주소·결제정보 반입은 허용되지 않았습니다. 시범 핵심은 이전 답변 검색이며 자동 답변 발송과 고객만족도 개선 확정은 범위 밖입니다."
+        }
+      },
+      {
+        "id": "9bdaef0b-5b31-589f-aad5-c2784c11520d",
+        "submission_id": "26740ca5-04fb-5a4e-9070-9409ef3e5f90",
+        "source_activity_id": "9bdaef0b-5b31-589f-aad5-c2784c11520d",
+        "report_date": "2026-06-01",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0",
+        "title": "주문·반품 연동",
+        "values": {
+          "body": "반품 접수·회수·검수·환불 요청·실제 지급을 분리하고 지급 완료는 결제사 응답으로 확인합니다. 한 주문에 복수 부분반품과 재전송이 가능해 주문금액 전체를 중복 환불하지 않아야 합니다."
+        }
+      }
+    ],
+    "meetings": [
+      {
+        "activity_id": "e5e6f145-e35b-5d09-8a1b-9db500f3b45b",
+        "common_report": {
+          "body": "생산지시가 아닌 견적 버전과 승인 이력 관리가 이번 검토 목적입니다. 영업 담당자는 6월 4일까지 20명 기준으로 CRM과 ERP 범위를 분리한 제안서를 발송할 예정입니다. 다음 미팅에서는 제안서 수신을 먼저 확인하고 ERP 연동은 자료 확보 전 보류합니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "ea1734ad-2a1a-5baf-8e2b-cf2b4e495bd2",
+        "common_report": {
+          "body": "화주 문의·회신 이력 통합이 목적이며 차량 추적·배차 교체는 범위 밖입니다. 도윤재는 6월 5일까지 문의 흐름 5건과 비식별 테스트 주문 10건을 제공할 예정입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "9bdaef0b-5b31-589f-aad5-c2784c11520d",
+        "common_report": {
+          "body": "6월 5일까지 영업 담당자가 보관·권한 설명서와 부분반품 예시를 전달할 예정입니다."
+        },
+        "unassigned_report": null
+      }
+    ],
+    "activities": []
+  },
+  "attachments": []
+}

@@ -1,0 +1,1283 @@
+{
+  "transcript": "영업 담당자: 오늘은 예산이 줄어든 상황에서 화주 고객관리 시범 범위를 다시 맞추는 자리로 이해했습니다. 먼저 전체 도입을 전제로 이야기하기보다, 실제로 검토할 수 있는 인원과 거점을 확인하고 싶습니다.\n도윤재: 맞습니다. 재무팀이 신규 시스템 지출을 줄이기로 해서, 마흔 명 전체 도입은 아직 승인하지 않았어요. 이번에는 한 거점의 열두 명만 유료 시범으로 보고 견적을 다시 받아야 합니다.\n영업 담당자: 그렇다면 화주별 운송 계약 갱신과 운임 문의를 한곳에서 다루는 고객관리 기능을 열두 명이 시험하는 범위로 보겠습니다. 배차나 차량 운행까지 바꾸는 내용은 아니고, 그 부분은 기존 배차시스템을 그대로 두는 전제인가요?\n도윤재: 네. 배차와 차량운행은 기존 시스템을 유지합니다. 그리고 지난번 메모에 있던 삼천만 원 예산 승인 내용은 이제 맞지 않아요. 예산을 절반으로 줄였다고 해서 원래 금액의 절반이 자동으로 승인되는 것도 아닙니다.\n영업 담당자: 알겠습니다. 기존 금액의 절반을 기계적으로 적용하는 게 아니라, 열두 명과 한 거점으로 줄인 시범에 대해 별도 검토가 필요한 상황이군요. 그 조건을 기준으로 다시 산정하겠습니다.\n도윤재: 유료 시범이라는 점도 견적에 드러나야 해요.\n영업 담당자: 시범에서 확인할 핵심은 사용자가 로그인할 수 있는지만 보는 것이 아니라, 문의를 넘겨받은 사람이 담당자와 마지막 답변을 찾아 이어서 처리할 수 있는지로 이해했습니다. 성공 기준을 그쪽에 두면 될까요?\n도윤재: 그게 중요합니다. 선택한 문의 스무 건 중 열여덟 건 이상에서 다른 사람이 담당자와 마지막 답변을 찾아야 해요. 현장에서는 접속 자체보다 인수인계가 되는지가 더 중요합니다.\n영업 담당자: 그 기준이라면 담당자 정보와 최종 답변을 검색하는 흐름을 따로 확인하겠습니다. 응답시간도 함께 달성률로 묶어 제시하면 안 되는 거죠?\n도윤재: 네. 응답시간은 아직 기준 측정이 끝나지 않았어요. 이번 기준에는 넣지 말고, 찾기 성공률과 답변 속도를 하나의 비율처럼 섞지 않았으면 합니다.\n영업 담당자: 확인했습니다. 이번 시범의 판단 지점은 문의 스무 건 가운데 담당자와 마지막 답변을 함께 찾는 건으로 두고, 열여덟 건 이상이라는 선만 적용하겠습니다.\n도윤재: 그리고 지난 6월 5일에 자료는 이미 전달했어요. 문의 흐름 다섯 건과 테스트 주문 열 건이 들어간 파일입니다.\n영업 담당자: 6월 5일 전달된 자료를 기준으로 보겠습니다. 주문번호가 같은 항목이 두 번 보이는 부분은 새 배송이 아니라 재전송 시험을 위해 넣은 것으로 보면 되겠습니까?\n도윤재: 맞아요. 같은 주문번호가 두 번 나온 것은 재전송을 시험하려고 넣은 겁니다. 실제 운송이 하나 더 생긴 것으로 세면 안 되고, 자료 전달 업무 자체는 끝났습니다.\n영업 담당자: 그 조건을 전제로 문의 연결 흐름을 확인하겠습니다. 중복 주문을 실제 배송 건수로 세지 않는다는 점도 시험 조건에 포함되는 거죠?\n도윤재: 네. 열 건이라는 수량을 그대로 실제 배송 건수처럼 해석하지 말고, 재전송된 같은 주문번호는 중복으로 처리해야 합니다.\n영업 담당자: 한편 출고 주문과 배송 상태를 읽어 화주 문의에 연결하는 운송 연계 부분은 별도로 나눠 보겠습니다. 기존 WMS 계약 범위를 먼저 확인해야 한다는 조건도 있어서, 고객관리 시범과 같은 방식으로 확정하기는 어렵습니다.\n도윤재: 그 연계에는 이번에 API 개발을 넣지 않겠습니다. 테스트 파일을 사람이 하루 두 번 올리는 방식으로 문의와 주문이 연결되는지만 보려고 합니다.\n영업 담당자: 수동 파일 업로드를 통해 흐름만 시험하고, API를 실제로 연결하는 개발은 이번 범위에서 빼는 거군요. 지난주에 제가 방식 비교표를 보낸 것은 확인하셨나요?\n도윤재: 네, 비교표는 받았습니다. 그렇다고 API를 쓸 수 있다고 확인해 준 것은 아닙니다. 이번에는 연동 자체를 보류하고, 본도입을 결정하기 전까지는 수동 방식만 보겠습니다.\n영업 담당자: 그럼 운송 연계 쪽은 자동 연동을 전제로 설명하지 않고, 사람이 파일을 올렸을 때 문의 화면에서 관련 정보가 이어지는지만 확인하겠습니다. 기존 WMS 계약 범위 확인도 먼저 남아 있겠네요.\n도윤재: 네. 파일을 올리는 시험과 API 개발은 구분해 주세요. 파일 시험이 된다고 해서 연동 도입을 결정한 것은 아닙니다.\n영업 담당자: 파일이 늦게 들어오는 경우의 화면 처리도 확인하고 싶습니다. 최종 업로드 시각을 화주 문의 화면에서 볼 수 있게 하고, 자료가 아직 없다는 이유만으로 상태를 자동 판단하지 않는 방향이 맞을까요?\n도윤재: 맞습니다. 실제 출고가 있었더라도 파일이 아직 들어오지 않았을 수 있어요. 화면에 정보가 없다는 이유만으로 미출고라고 확정하면 안 됩니다.\n영업 담당자: 그러면 최종 업로드 시각을 표시하고, 파일 반영 지연 때문에 판단할 수 없는 건은 운영자가 확인할 대상으로 따로 보이게 하겠습니다. 배송완료도 자동으로 확정하지 않는 것으로 이해했습니다.\n도윤재: 네. 이번 시험에서는 운영자가 확인해야 하는 건을 별도로 표시하면 됩니다. 자동으로 배송 완료 처리하는 기능은 요구하지 않았어요.\n영업 담당자: 알겠습니다. 파일이 안 보이는 상태와 실제 미출고를 같은 뜻으로 처리하지 않고, 배송완료 역시 운영자 확인 전에는 자동 확정하지 않는 흐름으로 보겠습니다.\n도윤재: 그 구분이 꼭 필요합니다. 수동 업로드 시험에서 파일 시각이 보이지 않으면 현장이 상태를 잘못 이해할 수 있어요.\n영업 담당자: 견적은 열두 명, 한 거점, 수동 파일 방식이라는 세 조건을 문서에 명시해서 6월 11일까지 보내드리겠습니다. 이 세 조건이 들어간 수정 견적이 수신되어야 전달이 완료된 것으로 보면 되겠습니까?\n도윤재: 네. 그 세 가지가 문서에 분명히 적혀서 6월 11일까지 도착해야 합니다. 열두 명이라고만 쓰고 한 거점이나 수동 파일 조건을 빼면 다시 확인해야 해요.\n영업 담당자: 검토회의 일정은 견적과 별개로 두겠습니다. 재무팀 일정이 아직 나오지 않았으니, 회의 날짜를 임의로 잡아두지는 않겠습니다.\n도윤재: 맞아요. 고객 검토회의 날짜는 아직 미정입니다. 다음 주 월요일로 정해진 것처럼 다루면 안 됩니다.\n영업 담당자: 그럼 현재 확인된 범위는 고객관리 쪽 열두 명·한 거점의 유료 시범이고, 문의 스무 건 가운데 열여덟 건 이상에서 담당자와 마지막 답변을 찾는 기준입니다. 응답시간은 이번 기준에서 제외하겠습니다.\n도윤재: 네, 그 범위로 재무팀이 볼 수 있게 해 주세요. 다만 고객관리 시범과 운송 연계 조건은 섞이지 않게 구분되어야 합니다.\n영업 담당자: 맞습니다. 고객관리 쪽은 열두 명과 한 거점의 유료 시범 견적을 다시 산정하고, 운송 연계 쪽은 API 없이 사람이 하루 두 번 파일을 올리는 시험으로만 분리하겠습니다.\n도윤재: 그리고 6월 5일 자료는 이미 전달된 상태입니다. 문의 다섯 건과 테스트 주문 열 건을 새로 받는 절차처럼 만들 필요는 없어요.\n영업 담당자: 확인했습니다. 기존 자료를 기준으로 재전송 항목은 중복 운송으로 세지 않고, 파일 반영이 늦으면 최종 업로드 시각과 운영자 확인 대상을 보여주는 쪽으로 연결하겠습니다.\n도윤재: 좋습니다. 재무팀 검토회의는 날짜가 나오지 않은 상태로 두고, 먼저 조건이 명확한 수정 견적을 받아보겠습니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "20dd2701e08901c33767217279d38e2053fac2231a460e43865e2de48f664dc0",
+    "selected_deal_ids": [
+      "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+      "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 58,
+          "text": "영업 담당자: 오늘은 예산이 줄어든 상황에서 화주 고객관리 시범 범위를 다시 맞추는 자리로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 59,
+          "end": 113,
+          "text": "먼저 전체 도입을 전제로 이야기하기보다, 실제로 검토할 수 있는 인원과 거점을 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 114,
+          "end": 124,
+          "text": "도윤재: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 125,
+          "end": 175,
+          "text": "재무팀이 신규 시스템 지출을 줄이기로 해서, 마흔 명 전체 도입은 아직 승인하지 않았어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 176,
+          "end": 219,
+          "text": "이번에는 한 거점의 열두 명만 유료 시범으로 보고 견적을 다시 받아야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 220,
+          "end": 293,
+          "text": "영업 담당자: 그렇다면 화주별 운송 계약 갱신과 운임 문의를 한곳에서 다루는 고객관리 기능을 열두 명이 시험하는 범위로 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 294,
+          "end": 348,
+          "text": "배차나 차량 운행까지 바꾸는 내용은 아니고, 그 부분은 기존 배차시스템을 그대로 두는 전제인가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 349,
+          "end": 356,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 357,
+          "end": 381,
+          "text": "배차와 차량운행은 기존 시스템을 유지합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 382,
+          "end": 423,
+          "text": "그리고 지난번 메모에 있던 삼천만 원 예산 승인 내용은 이제 맞지 않아요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 424,
+          "end": 470,
+          "text": "예산을 절반으로 줄였다고 해서 원래 금액의 절반이 자동으로 승인되는 것도 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 471,
+          "end": 485,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 486,
+          "end": 555,
+          "text": "기존 금액의 절반을 기계적으로 적용하는 게 아니라, 열두 명과 한 거점으로 줄인 시범에 대해 별도 검토가 필요한 상황이군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 556,
+          "end": 578,
+          "text": "그 조건을 기준으로 다시 산정하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 579,
+          "end": 608,
+          "text": "도윤재: 유료 시범이라는 점도 견적에 드러나야 해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 609,
+          "end": 709,
+          "text": "영업 담당자: 시범에서 확인할 핵심은 사용자가 로그인할 수 있는지만 보는 것이 아니라, 문의를 넘겨받은 사람이 담당자와 마지막 답변을 찾아 이어서 처리할 수 있는지로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 710,
+          "end": 728,
+          "text": "성공 기준을 그쪽에 두면 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 729,
+          "end": 743,
+          "text": "도윤재: 그게 중요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 744,
+          "end": 796,
+          "text": "선택한 문의 스무 건 중 열여덟 건 이상에서 다른 사람이 담당자와 마지막 답변을 찾아야 해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 797,
+          "end": 830,
+          "text": "현장에서는 접속 자체보다 인수인계가 되는지가 더 중요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 831,
+          "end": 882,
+          "text": "영업 담당자: 그 기준이라면 담당자 정보와 최종 답변을 검색하는 흐름을 따로 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 883,
+          "end": 913,
+          "text": "응답시간도 함께 달성률로 묶어 제시하면 안 되는 거죠?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 914,
+          "end": 921,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 922,
+          "end": 947,
+          "text": "응답시간은 아직 기준 측정이 끝나지 않았어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 948,
+          "end": 999,
+          "text": "이번 기준에는 넣지 말고, 찾기 성공률과 답변 속도를 하나의 비율처럼 섞지 않았으면 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1000,
+          "end": 1015,
+          "text": "영업 담당자: 확인했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1016,
+          "end": 1092,
+          "text": "이번 시범의 판단 지점은 문의 스무 건 가운데 담당자와 마지막 답변을 함께 찾는 건으로 두고, 열여덟 건 이상이라는 선만 적용하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1093,
+          "end": 1125,
+          "text": "도윤재: 그리고 지난 6월 5일에 자료는 이미 전달했어요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1126,
+          "end": 1160,
+          "text": "문의 흐름 다섯 건과 테스트 주문 열 건이 들어간 파일입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1161,
+          "end": 1194,
+          "text": "영업 담당자: 6월 5일 전달된 자료를 기준으로 보겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1195,
+          "end": 1257,
+          "text": "주문번호가 같은 항목이 두 번 보이는 부분은 새 배송이 아니라 재전송 시험을 위해 넣은 것으로 보면 되겠습니까?"
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1258,
+          "end": 1267,
+          "text": "도윤재: 맞아요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1268,
+          "end": 1305,
+          "text": "같은 주문번호가 두 번 나온 것은 재전송을 시험하려고 넣은 겁니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1306,
+          "end": 1353,
+          "text": "실제 운송이 하나 더 생긴 것으로 세면 안 되고, 자료 전달 업무 자체는 끝났습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1354,
+          "end": 1390,
+          "text": "영업 담당자: 그 조건을 전제로 문의 연결 흐름을 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1391,
+          "end": 1434,
+          "text": "중복 주문을 실제 배송 건수로 세지 않는다는 점도 시험 조건에 포함되는 거죠?"
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1435,
+          "end": 1442,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1443,
+          "end": 1506,
+          "text": "열 건이라는 수량을 그대로 실제 배송 건수처럼 해석하지 말고, 재전송된 같은 주문번호는 중복으로 처리해야 합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1507,
+          "end": 1570,
+          "text": "영업 담당자: 한편 출고 주문과 배송 상태를 읽어 화주 문의에 연결하는 운송 연계 부분은 별도로 나눠 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1571,
+          "end": 1635,
+          "text": "기존 WMS 계약 범위를 먼저 확인해야 한다는 조건도 있어서, 고객관리 시범과 같은 방식으로 확정하기는 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1636,
+          "end": 1669,
+          "text": "도윤재: 그 연계에는 이번에 API 개발을 넣지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1670,
+          "end": 1721,
+          "text": "테스트 파일을 사람이 하루 두 번 올리는 방식으로 문의와 주문이 연결되는지만 보려고 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 1722,
+          "end": 1787,
+          "text": "영업 담당자: 수동 파일 업로드를 통해 흐름만 시험하고, API를 실제로 연결하는 개발은 이번 범위에서 빼는 거군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 1788,
+          "end": 1817,
+          "text": "지난주에 제가 방식 비교표를 보낸 것은 확인하셨나요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 1818,
+          "end": 1837,
+          "text": "도윤재: 네, 비교표는 받았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 1838,
+          "end": 1870,
+          "text": "그렇다고 API를 쓸 수 있다고 확인해 준 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 1871,
+          "end": 1917,
+          "text": "이번에는 연동 자체를 보류하고, 본도입을 결정하기 전까지는 수동 방식만 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 1918,
+          "end": 2002,
+          "text": "영업 담당자: 그럼 운송 연계 쪽은 자동 연동을 전제로 설명하지 않고, 사람이 파일을 올렸을 때 문의 화면에서 관련 정보가 이어지는지만 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 2003,
+          "end": 2031,
+          "text": "기존 WMS 계약 범위 확인도 먼저 남아 있겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0050",
+          "start": 2032,
+          "end": 2039,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0051",
+          "start": 2040,
+          "end": 2068,
+          "text": "파일을 올리는 시험과 API 개발은 구분해 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0052",
+          "start": 2069,
+          "end": 2102,
+          "text": "파일 시험이 된다고 해서 연동 도입을 결정한 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0053",
+          "start": 2103,
+          "end": 2144,
+          "text": "영업 담당자: 파일이 늦게 들어오는 경우의 화면 처리도 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0054",
+          "start": 2145,
+          "end": 2219,
+          "text": "최종 업로드 시각을 화주 문의 화면에서 볼 수 있게 하고, 자료가 아직 없다는 이유만으로 상태를 자동 판단하지 않는 방향이 맞을까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0055",
+          "start": 2220,
+          "end": 2230,
+          "text": "도윤재: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0056",
+          "start": 2231,
+          "end": 2266,
+          "text": "실제 출고가 있었더라도 파일이 아직 들어오지 않았을 수 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0057",
+          "start": 2267,
+          "end": 2302,
+          "text": "화면에 정보가 없다는 이유만으로 미출고라고 확정하면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0058",
+          "start": 2303,
+          "end": 2384,
+          "text": "영업 담당자: 그러면 최종 업로드 시각을 표시하고, 파일 반영 지연 때문에 판단할 수 없는 건은 운영자가 확인할 대상으로 따로 보이게 하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0059",
+          "start": 2385,
+          "end": 2415,
+          "text": "배송완료도 자동으로 확정하지 않는 것으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0060",
+          "start": 2416,
+          "end": 2423,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0061",
+          "start": 2424,
+          "end": 2462,
+          "text": "이번 시험에서는 운영자가 확인해야 하는 건을 별도로 표시하면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0062",
+          "start": 2463,
+          "end": 2493,
+          "text": "자동으로 배송 완료 처리하는 기능은 요구하지 않았어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0063",
+          "start": 2494,
+          "end": 2508,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0064",
+          "start": 2509,
+          "end": 2588,
+          "text": "파일이 안 보이는 상태와 실제 미출고를 같은 뜻으로 처리하지 않고, 배송완료 역시 운영자 확인 전에는 자동 확정하지 않는 흐름으로 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0065",
+          "start": 2589,
+          "end": 2608,
+          "text": "도윤재: 그 구분이 꼭 필요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0066",
+          "start": 2609,
+          "end": 2657,
+          "text": "수동 업로드 시험에서 파일 시각이 보이지 않으면 현장이 상태를 잘못 이해할 수 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0067",
+          "start": 2658,
+          "end": 2727,
+          "text": "영업 담당자: 견적은 열두 명, 한 거점, 수동 파일 방식이라는 세 조건을 문서에 명시해서 6월 11일까지 보내드리겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0068",
+          "start": 2728,
+          "end": 2774,
+          "text": "이 세 조건이 들어간 수정 견적이 수신되어야 전달이 완료된 것으로 보면 되겠습니까?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0069",
+          "start": 2775,
+          "end": 2782,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0070",
+          "start": 2783,
+          "end": 2821,
+          "text": "그 세 가지가 문서에 분명히 적혀서 6월 11일까지 도착해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0071",
+          "start": 2822,
+          "end": 2865,
+          "text": "열두 명이라고만 쓰고 한 거점이나 수동 파일 조건을 빼면 다시 확인해야 해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0072",
+          "start": 2866,
+          "end": 2897,
+          "text": "영업 담당자: 검토회의 일정은 견적과 별개로 두겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0073",
+          "start": 2898,
+          "end": 2942,
+          "text": "재무팀 일정이 아직 나오지 않았으니, 회의 날짜를 임의로 잡아두지는 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0074",
+          "start": 2943,
+          "end": 2952,
+          "text": "도윤재: 맞아요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0075",
+          "start": 2953,
+          "end": 2974,
+          "text": "고객 검토회의 날짜는 아직 미정입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0076",
+          "start": 2975,
+          "end": 3003,
+          "text": "다음 주 월요일로 정해진 것처럼 다루면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0077",
+          "start": 3004,
+          "end": 3098,
+          "text": "영업 담당자: 그럼 현재 확인된 범위는 고객관리 쪽 열두 명·한 거점의 유료 시범이고, 문의 스무 건 가운데 열여덟 건 이상에서 담당자와 마지막 답변을 찾는 기준입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0078",
+          "start": 3099,
+          "end": 3121,
+          "text": "응답시간은 이번 기준에서 제외하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0079",
+          "start": 3122,
+          "end": 3154,
+          "text": "도윤재: 네, 그 범위로 재무팀이 볼 수 있게 해 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0080",
+          "start": 3155,
+          "end": 3194,
+          "text": "다만 고객관리 시범과 운송 연계 조건은 섞이지 않게 구분되어야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0081",
+          "start": 3195,
+          "end": 3208,
+          "text": "영업 담당자: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0082",
+          "start": 3209,
+          "end": 3297,
+          "text": "고객관리 쪽은 열두 명과 한 거점의 유료 시범 견적을 다시 산정하고, 운송 연계 쪽은 API 없이 사람이 하루 두 번 파일을 올리는 시험으로만 분리하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0083",
+          "start": 3298,
+          "end": 3330,
+          "text": "도윤재: 그리고 6월 5일 자료는 이미 전달된 상태입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0084",
+          "start": 3331,
+          "end": 3374,
+          "text": "문의 다섯 건과 테스트 주문 열 건을 새로 받는 절차처럼 만들 필요는 없어요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0085",
+          "start": 3375,
+          "end": 3390,
+          "text": "영업 담당자: 확인했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0086",
+          "start": 3391,
+          "end": 3476,
+          "text": "기존 자료를 기준으로 재전송 항목은 중복 운송으로 세지 않고, 파일 반영이 늦으면 최종 업로드 시각과 운영자 확인 대상을 보여주는 쪽으로 연결하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0087",
+          "start": 3477,
+          "end": 3487,
+          "text": "도윤재: 좋습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0088",
+          "start": 3488,
+          "end": 3543,
+          "text": "재무팀 검토회의는 날짜가 나오지 않은 상태로 두고, 먼저 조건이 명확한 수정 견적을 받아보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-08T11:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "41ffacdf-2121-5502-9566-ae328819655c",
+      "name": "나루물류(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "dd0adbab-6918-5dd7-b09d-c05f2fe893d8",
+      "name": "도윤재(가상)"
+    },
+    "activity": {
+      "id": "a7045154-36ea-52fb-a698-8f03bcb29378",
+      "starts_at": "2026-06-08T11:00:00+09:00",
+      "title": "예산 축소에 따른 시범 범위 재설정"
+    },
+    "deals": [
+      {
+        "id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "company_id": "company02",
+        "contact_id": "contact02",
+        "title": "화주 고객관리",
+        "description": "화주별 운송 계약 갱신과 운임 문의를 통합하는 CRM. 배차·차량운행 자체는 기존 배차시스템 유지.",
+        "deal_amount": 30000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "observed_state": "40명·3거점 검토; 예산 미승인"
+      },
+      {
+        "id": "10a6f8f9-0362-5a51-ac53-ccd1b229fee0",
+        "company_id": "company02",
+        "contact_id": "contact02",
+        "title": "WMS 운송 연계",
+        "description": "출고 주문과 배송 상태를 읽어 화주 문의에 연결하는 연동. 기존 WMS 계약 범위 확인이 선행 조건.",
+        "deal_amount": 12000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "10a6f8f9-0362-5a51-ac53-ccd1b229fee0",
+        "observed_state": "출고조회 연동 검토; API 여부 미확인"
+      }
+    ],
+    "previous_reports": [
+      {
+        "sales_deal_id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "report_date": "2026-06-01",
+        "body": "초기 검토 대상은 세 거점의 영업·화주 응대 40명이며 기사 계정은 제외됩니다. 연 3,000만 원은 승인 전 검토예산이며 회신시간의 현재 기준값은 아직 없습니다.",
+        "submission_id": "90a38d4b-50cd-538f-a08c-b7598d6431f4"
+      },
+      {
+        "sales_deal_id": "10a6f8f9-0362-5a51-ac53-ccd1b229fee0",
+        "report_date": "2026-06-01",
+        "body": "WMS 출고 상태와 고객 인수 완료는 다르며 API 제공 여부는 미확정입니다. 비식별 테스트 주문 10건에 재전송 사례를 포함해 중복 집계를 확인합니다.",
+        "submission_id": "90a38d4b-50cd-538f-a08c-b7598d6431f4"
+      }
+    ],
+    "trade_history": []
+  },
+  "attachments": []
+}

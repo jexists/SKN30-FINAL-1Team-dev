@@ -1,0 +1,146 @@
+{
+  "case_id": "weekly04",
+  "report_kind": "weekly",
+  "facts": [
+    {
+      "id": "weekly04-f01",
+      "claim": "이번 주 서명계약 목표는 3건입니다.",
+      "source_refs": [
+        {
+          "path": "guidance",
+          "quote": "이번 주 서명계약 목표는 3건입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly04-f02",
+      "claim": "6월 22일 CRM 20명·부가세 별도 연 2,400만 원 계약이 양사 서명 완료됐으며 서비스 개시는 7월 1일입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "6월 22일 CRM 20명·부가세 별도 연 2,400만 원 계약이 양사 서명 완료됐으며 서비스 개시는 7월 1일입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly04-f03",
+      "claim": "지점장 회신 확인은 완료됐으나 운영담당자2명 확보는 실패해 미완료입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "지점장 회신 확인은 완료됐으나 운영담당자2명 확보는 실패해 미완료입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly04-f04",
+      "claim": "주문번호·문의유형만 쓰는 제한 시범이 조건부 허용됐고 CRM 계약은 미체결입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "주문번호·문의유형만 쓰는 제한 시범이 조건부 허용됐고 CRM 계약은 미체결입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly04-f05",
+      "claim": "10명 운영계정 접근검증이6월22일 완료됐으며 지난주 계약의 이행이지 신규계약이 아닙니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "10명 운영계정 접근검증이6월22일 완료됐으며 지난주 계약의 이행이지 신규계약이 아닙니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly04-f06",
+      "claim": "안내자료 수신 후3명 의견을 받았고1명은 승인상태 글자 가독성 개선을 요청했습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "안내자료 수신 후3명 의견을 받았고1명은 승인상태 글자 가독성 개선을 요청했습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly04-f07",
+      "claim": "6월24일 CRM1,500만 원 계약 서명 완료,750만 원씩7월6일·10월6일 분납이며 입금은 미확인입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "6월24일 CRM1,500만 원 계약 서명 완료,750만 원씩7월6일·10월6일 분납이며 입금은 미확인입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly04-f08",
+      "claim": "수정제안은 수신됐으나 본사·점주 책임정책 미정으로 구매결정 보류이며 계약 미체결입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "수정제안은 수신됐으나 본사·점주 책임정책 미정으로 구매결정 보류이며 계약 미체결입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly04-f09",
+      "claim": "6월22일 이름·단계·일정의 제한시범만 허용됐고 실도면·계약서는 제외됩니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "6월22일 이름·단계·일정의 제한시범만 허용됐고 실도면·계약서는 제외됩니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly04-f10",
+      "claim": "6월22일 CRM 시연계정 비활성화가 확인됐고 연간제안 거절상태를 유지합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "6월22일 CRM 시연계정 비활성화가 확인됐고 연간제안 거절상태를 유지합니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "weekly04-f01",
+    "weekly04-f02",
+    "weekly04-f03",
+    "weekly04-f04",
+    "weekly04-f05",
+    "weekly04-f06",
+    "weekly04-f07",
+    "weekly04-f08",
+    "weekly04-f09",
+    "weekly04-f10"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [
+    {
+      "claim": "금주 미팅 9건, 월 누적 36건입니다. 금주 신규 서명 계약은 2건, 부가세 별도 39,000,000원입니다.",
+      "operation": "당기 미팅은 source_activity_id 중복 제거; 신규 서명은 event_id별 한 번 합산",
+      "expected": {
+        "meeting_count": 9,
+        "new_contract_count": 2,
+        "signed_amount_krw": 39000000
+      }
+    }
+  ],
+  "report_expectations": "목표→실적→차이→근거 있는 원인→다음 주 조치. 원인·목표 미제공은 미정으로 둡니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

@@ -1,0 +1,140 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-06-10",
+  "period_start": null,
+  "period_end": null,
+  "sales_deal_id": null,
+  "template_snapshot": {
+    "fields": [
+      {
+        "id": "body",
+        "label": "본문"
+      }
+    ]
+  },
+  "content": {
+    "values": {}
+  },
+  "transcript": null,
+  "guidance": null,
+  "report_sources": {
+    "reports": [
+      {
+        "id": "8693e81b-e9ca-5a83-a7f0-b7c174e1e6f1",
+        "submission_id": "b2cb0795-041a-57e1-b3ca-fdbe1bb43e44",
+        "source_activity_id": "8693e81b-e9ca-5a83-a7f0-b7c174e1e6f1",
+        "report_date": "2026-06-10",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "e87a886e-31a5-5620-860a-527d02055a31",
+        "title": "수강 상담 CRM",
+        "values": {
+          "body": "12건 시범에서 제공된 담당자·연락일 누락은0건이며 연락일 미정2건은 미정으로 보존했습니다. 1,800만 원 예산 승인 요청은 제출됐지만 결재 중이며 계약은 미체결입니다. 고객의 결제 발언과 실제 결제확인은 별도로 보존해야 합니다."
+        }
+      },
+      {
+        "id": "8693e81b-e9ca-5a83-a7f0-b7c174e1e6f1",
+        "submission_id": "b2cb0795-041a-57e1-b3ca-fdbe1bb43e44",
+        "source_activity_id": "8693e81b-e9ca-5a83-a7f0-b7c174e1e6f1",
+        "report_date": "2026-06-10",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "33fdda96-b0ec-5ad0-99f3-192e905679a5",
+        "title": "상담사 실습 교육",
+        "values": {
+          "body": "교육은 신규4명·기존6명 실습안 검토의 별도 딜이며 발주는 아직 없습니다."
+        }
+      },
+      {
+        "id": "99cb509d-463f-5a3f-b787-63a201596853",
+        "submission_id": "6c214f5f-e717-5628-a33f-50c275d94ce3",
+        "source_activity_id": "99cb509d-463f-5a3f-b787-63a201596853",
+        "report_date": "2026-06-10",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "788723af-dea7-5981-af8c-f268c44bdfa5",
+        "title": "거래처 주문 CRM",
+        "values": {
+          "body": "CRM 단가8건은 검증됐고 재고 화면은 오류 수정 전 숨기기로 했습니다. 단가승인팀장2명은개별계정으로승인하고 시각을남겨야합니다. 부분취소는해당품목·수량만변경하고 잔여품목단가와이전금액이력을보존해야합니다. 접수·승인중가격기준시각은팀장결정전미정입니다."
+        }
+      },
+      {
+        "id": "99cb509d-463f-5a3f-b787-63a201596853",
+        "submission_id": "6c214f5f-e717-5628-a33f-50c275d94ce3",
+        "source_activity_id": "99cb509d-463f-5a3f-b787-63a201596853",
+        "report_date": "2026-06-10",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+        "title": "재고·유통기한 조회",
+        "values": {
+          "body": "가용재고가 잘못140박스로 표시됐고 올바른 값은120-20=100박스입니다. 시험상 예약20중5취소 시 실물120·예약15·가용105박스가 기대값입니다. 10시파일이후늦은9시파일수신 시 재고가과거값으로되돌아가지않는시험을 요구합니다. 로트별수량·기한조회는필요하지만 CRM자동로트배정은 범위밖입니다. 재고조회실패시 문의메모는허용하고 수량확정은보류하며 실패를재고0으로해석하지않습니다."
+        }
+      },
+      {
+        "id": "b750ca35-0a0e-550c-aba4-20f67a43e22a",
+        "submission_id": "38b68924-0fea-5315-87bb-364515ae049b",
+        "source_activity_id": "b750ca35-0a0e-550c-aba4-20f67a43e22a",
+        "report_date": "2026-06-10",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "e5aeb77a-a489-5410-9ca2-9e1e0e15fc11",
+        "title": "서비스 이력 CRM",
+        "values": {
+          "body": "서비스6건 사유는 조회됐으나 담당기사 변경1건의 표시 수정이 필요합니다. 동일장비·동일문제재접수는기존이력에연결하고 새문제여부불명확시확인이필요합니다. 대기서비스2건은부품주문요청단계이고 부품도착·교체는미완료입니다. 수리완료·고객확인은분리하며 무응답건종결정책은미정입니다."
+        }
+      },
+      {
+        "id": "b750ca35-0a0e-550c-aba4-20f67a43e22a",
+        "submission_id": "38b68924-0fea-5315-87bb-364515ae049b",
+        "source_activity_id": "b750ca35-0a0e-550c-aba4-20f67a43e22a",
+        "report_date": "2026-06-10",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "cbef8e0a-62d2-5788-baa4-a0e736551385",
+        "title": "설치장비 대장 연동",
+        "values": {
+          "body": "장비10건 중1건의 설치일이 원본대장에도 없어 확인이 필요합니다. 전체장비식별번호·모델로대조하며 끝4자리일치만으로합치지않고 사진인식은사용하지않습니다. 설치일수정은근거·수정자를보존하며 구두경과연수만으로날짜를만들지않습니다."
+        }
+      },
+      {
+        "id": "b750ca35-0a0e-550c-aba4-20f67a43e22a",
+        "submission_id": "38b68924-0fea-5315-87bb-364515ae049b",
+        "source_activity_id": "b750ca35-0a0e-550c-aba4-20f67a43e22a",
+        "report_date": "2026-06-10",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "5ae442ff-37b5-5500-b802-813df54182d0",
+        "title": "장애 연락 운영지원",
+        "values": {
+          "body": "30분 내 접수안내·배정안을 검토하며 수리완료 보장이나 야간지원 승인은 아닙니다. 가동중단·성능저하·단순문의3등급을검토하며 등급별출동시간은미확정입니다. 30분접수목표의시작은연락창구수신시각이며 아직서비스계약조건으로확정하지않았습니다. 주간창구는있지만 야간담당·대체연락체계는승인전입니다."
+        }
+      }
+    ],
+    "meetings": [
+      {
+        "activity_id": "8693e81b-e9ca-5a83-a7f0-b7c174e1e6f1",
+        "common_report": {
+          "body": "영업 담당자는6월12일까지10명·1,800만 원·7월1일 개시 예정 계약초안과 교육안을 전달할 예정입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "99cb509d-463f-5a3f-b787-63a201596853",
+        "common_report": {
+          "body": "단가표2버전을 수신했고 적용일 이전 주문 가격은 유지하며 변경품목은 승인 검토합니다. 영업 담당자는6월12일까지100박스 계산 근거와 수정 화면·기준시각을 전달할 예정입니다. 장하람은영업사용성·창고담당자는수량을대조하며 전사적용은미결정입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "b750ca35-0a0e-550c-aba4-20f67a43e22a",
+        "common_report": {
+          "body": "6월12일까지 영업 담당자는 기사표시 수정, 류온재는 설치일 원본문서 확인을 할 예정입니다."
+        },
+        "unassigned_report": null
+      }
+    ],
+    "activities": []
+  },
+  "attachments": []
+}

@@ -1,0 +1,140 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-06-08",
+  "period_start": null,
+  "period_end": null,
+  "sales_deal_id": null,
+  "template_snapshot": {
+    "fields": [
+      {
+        "id": "body",
+        "label": "본문"
+      }
+    ]
+  },
+  "content": {
+    "values": {}
+  },
+  "transcript": null,
+  "guidance": null,
+  "report_sources": {
+    "reports": [
+      {
+        "id": "df0a4f78-86cd-58e5-9278-e826f7b3f378",
+        "submission_id": "54b8f769-dcc5-596e-ac8a-243135d625c1",
+        "source_activity_id": "df0a4f78-86cd-58e5-9278-e826f7b3f378",
+        "report_date": "2026-06-08",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+        "title": "견적·고객관리 CRM",
+        "values": {
+          "body": "재무팀은 자동 갱신과 계약 종료 시 데이터 반출 조건을 검토 중입니다. 전체 도입 검토 20명 중 5명이 먼저 시범 운영하며 회신시간과 승인 누락을 함께 평가합니다. 이번 시범은 견적 작성·승인 요청까지이며 외부 자동 발송은 사용하지 않습니다. 시범 오류와 고객의 수량 변경을 구분하고 오류 건을 임의로 표본에서 제외하지 않습니다. 검토 회의 일정 변경은 계약 확정을 의미하지 않으며 시범 결과와 조항 검토가 남아 있습니다."
+        }
+      },
+      {
+        "id": "df0a4f78-86cd-58e5-9278-e826f7b3f378",
+        "submission_id": "54b8f769-dcc5-596e-ac8a-243135d625c1",
+        "source_activity_id": "df0a4f78-86cd-58e5-9278-e826f7b3f378",
+        "report_date": "2026-06-08",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "dccf41cc-9724-5fba-b283-5cde62b35b7b",
+        "title": "ERP 단가 연동",
+        "values": {
+          "body": "ERP 테스트 파일은 확보했지만 API 사용권·비용이 미확정이므로 연동 딜은 보류합니다."
+        }
+      },
+      {
+        "id": "a7045154-36ea-52fb-a698-8f03bcb29378",
+        "submission_id": "5b844dc4-4f39-5d23-b794-2fee3c156a40",
+        "source_activity_id": "a7045154-36ea-52fb-a698-8f03bcb29378",
+        "report_date": "2026-06-08",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "title": "화주 고객관리",
+        "values": {
+          "body": "40명 전체 도입은 미승인이고 한 거점 12명 유료 시범으로 견적 재요청합니다. 12명 시범은 문의20건 중18건 이상에서 담당자·최종답변 검색 성공을 기준으로 합니다. 6월 11일까지 12명·1거점·수동파일 조건의 수정 견적을 요청하며 고객 검토회의 날짜는 미정입니다."
+        }
+      },
+      {
+        "id": "a7045154-36ea-52fb-a698-8f03bcb29378",
+        "submission_id": "5b844dc4-4f39-5d23-b794-2fee3c156a40",
+        "source_activity_id": "a7045154-36ea-52fb-a698-8f03bcb29378",
+        "report_date": "2026-06-08",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "10a6f8f9-0362-5a51-ac53-ccd1b229fee0",
+        "title": "WMS 운송 연계",
+        "values": {
+          "body": "API 개발은 시범에서 제외하며 수동 파일 업로드로 시험하고 연동 딜은 보류합니다. 파일 반영 지연 상태에서는 미출고·배송완료를 자동 확정하지 않습니다."
+        }
+      },
+      {
+        "id": "b9cae371-cdf2-532b-a665-464e7acd1d16",
+        "submission_id": "25b4db6d-d506-5a90-8141-04d2e5697a6a",
+        "source_activity_id": "b9cae371-cdf2-532b-a665-464e7acd1d16",
+        "report_date": "2026-06-08",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "6ca8c414-0109-5efa-b007-5d809037d282",
+        "title": "상담 통합 CRM",
+        "values": {
+          "body": "비식별 상담15건 중14건 연결 성공이며 공백이 있는 주문번호1건은 재확인 대상입니다. 영업 담당자는 6월12일까지 주문번호 공백 오류 수정 후15건 전체 재확인 결과를 전달할 예정입니다. 주문번호 앞뒤 공백만 정리하며 전화번호가 같아도 다른 주문을 합치지 않습니다. 일반상담원은 문의·주문번호만 조회하며 결제수단 상세는 제외를 요구합니다. 상담사2명이 각기다른순서로15건을 검색하는 재검증을 계획하며 결과는미수집입니다."
+        }
+      },
+      {
+        "id": "b9cae371-cdf2-532b-a665-464e7acd1d16",
+        "submission_id": "25b4db6d-d506-5a90-8141-04d2e5697a6a",
+        "source_activity_id": "b9cae371-cdf2-532b-a665-464e7acd1d16",
+        "report_date": "2026-06-08",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0",
+        "title": "주문·반품 연동",
+        "values": {
+          "body": "부분반품 요청 화면은 확인했지만 결제사 테스트가 없어 지급 완료 연동은 미검증입니다. 같은반품3회 재전송은1접수,서로다른2품목 반품은2접수로 검증할 계획입니다. 시험주문60,000원에서20,000원 부분반품 요청 후 잔액40,000원을 검증할 계획입니다. 상품판매가격·기지급환불내역 직접수정은 검토범위 밖입니다."
+        }
+      },
+      {
+        "id": "b9cae371-cdf2-532b-a665-464e7acd1d16",
+        "submission_id": "25b4db6d-d506-5a90-8141-04d2e5697a6a",
+        "source_activity_id": "b9cae371-cdf2-532b-a665-464e7acd1d16",
+        "report_date": "2026-06-08",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "b7198d85-c5b1-5449-8475-44ad64cbd6a5",
+        "title": "야간 운영 지원",
+        "values": {
+          "body": "야간 운영지원은 인계·장애 연락체계 검토이며 상주서비스 계약·금액·시간은 미확정입니다. 야간 접수는다음근무시작시배정안을검토하며 자동접수안내는문의종결이 아닙니다. 야간인계목록에 접수시각·미완료이유·담당부서를 요구하며 개인담당자 미정이 허용됩니다."
+        }
+      }
+    ],
+    "meetings": [
+      {
+        "activity_id": "df0a4f78-86cd-58e5-9278-e826f7b3f378",
+        "common_report": {
+          "body": "6월 4일 수정 제안서 발송과 고객 수신이 확인되어 해당 후속 업무가 완료됐습니다. 영업 담당자는 6월 11일까지 계약조건 초안을 전달하고 고은서는 6월 14일까지 20건의 시범 결과표를 작성할 예정입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "a7045154-36ea-52fb-a698-8f03bcb29378",
+        "common_report": {
+          "body": "6월 5일 문의5건·주문10건 자료 전달이 완료됐으며 재전송은 신규 운송이 아닙니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "b9cae371-cdf2-532b-a665-464e7acd1d16",
+        "common_report": {
+          "body": "보안 검토는 접수됐으나 다운로드·관리자 접근기록 보관기간 보완이 필요해 승인 전입니다. 보안 접근기록 보관기간 문서 회신이 우선이며 기한은6월12일입니다."
+        },
+        "unassigned_report": null
+      }
+    ],
+    "activities": []
+  },
+  "attachments": []
+}

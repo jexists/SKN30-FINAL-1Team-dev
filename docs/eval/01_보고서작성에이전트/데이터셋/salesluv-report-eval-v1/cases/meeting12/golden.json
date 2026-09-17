@@ -1,0 +1,398 @@
+{
+  "case_id": "meeting12",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting12-f01",
+      "claim": "보안 검토는 접수됐으나 다운로드·관리자 접근기록 보관기간 보완이 필요해 승인 전입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 201,
+          "end": 256,
+          "quote": "보안 검토는 접수됐지만 승인 전이며, 다운로드 이력과 관리자 접근기록의 보관기간 보완이 필요합니다.",
+          "segment_ids": [
+            "S0005"
+          ]
+        },
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 302,
+          "end": 393,
+          "quote": "지금까지 화면에서 본 것은 실제 고객정보가 아니라 비식별 상담 열다섯 건입니다. 그 자료로 시범 화면만 확인했으며, 보안 승인이나 실제 운영은 완료되지 않았습니다.",
+          "segment_ids": [
+            "S0007",
+            "S0008"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting12-f01"
+    },
+    {
+      "id": "meeting12-f02",
+      "claim": "비식별 상담15건 중14건 연결 성공이며 공백이 있는 주문번호1건은 재확인 대상입니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 778,
+          "end": 830,
+          "quote": "비식별 상담 열다섯 건 중 열네 건이 연결됐고, 한 건은 주문번호 공백으로 미연결 상태입니다.",
+          "segment_ids": [
+            "S0017"
+          ]
+        },
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 831,
+          "end": 875,
+          "quote": "해당 건을 수정한 뒤 다시 확인해야 하므로 현재 성공률은 백 퍼센트가 아닙니다.",
+          "segment_ids": [
+            "S0018"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting12-f02"
+    },
+    {
+      "id": "meeting12-f03",
+      "claim": "부분반품 요청 화면은 확인했지만 결제사 테스트가 없어 지급 완료 연동은 미검증입니다.",
+      "sales_deal_id": "deal03-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 2260,
+          "end": 2309,
+          "quote": "환불 요청 화면과 요청 메시지는 확인했지만, 지급 완료 응답은 아직 검증되지 않았습니다.",
+          "segment_ids": [
+            "S0050"
+          ]
+        },
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 2216,
+          "end": 2259,
+          "quote": "환불 요청 생성과 결제 시스템의 환불 지급 완료 응답은 서로 다른 상태입니다.",
+          "segment_ids": [
+            "S0049"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting12-f03"
+    },
+    {
+      "id": "meeting12-f04",
+      "claim": "야간 운영지원은 인계·장애 연락체계 검토이며 상주서비스 계약·금액·시간은 미확정입니다.",
+      "sales_deal_id": "deal03-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 3594,
+          "end": 3661,
+          "quote": "야간 운영지원은 상주 서비스의 계약 조건을 확정하는 단계가 아니라 인계와 장애 연락체계를 검토하는 단계로 이해하겠습니다.",
+          "segment_ids": [
+            "S0075"
+          ]
+        },
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 3662,
+          "end": 3714,
+          "quote": "월 비용이나 서비스 시간, 상주 여부를 새로 정하지 않고 필요한 운영 흐름만 설명드리겠습니다.",
+          "segment_ids": [
+            "S0076"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting12-f04"
+    },
+    {
+      "id": "meeting12-f05",
+      "claim": "영업 담당자는 6월12일까지 주문번호 공백 오류 수정 후15건 전체 재확인 결과를 전달할 예정입니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 1210,
+          "end": 1319,
+          "quote": "해당 주문번호의 공백 오류를 수정하고, 전체 열다섯 건을 다시 검색해 기존 연결 열네 건의 유지 여부까지 확인하겠습니다. 수정 결과와 처음 오류가 재현되는 방법을 6월 12일까지 전달드리겠습니다.",
+          "segment_ids": [
+            "S0028",
+            "S0029"
+          ]
+        },
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 1395,
+          "end": 1463,
+          "quote": "현재 확인된 상태는 상담 화면의 기존 열네 건 연결과 주문번호 공백 오류 한 건입니다. 전체 재검증은 아직 수행 전입니다.",
+          "segment_ids": [
+            "S0032",
+            "S0033"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting12-f05"
+    },
+    {
+      "id": "meeting12-f06",
+      "claim": "보안 접근기록 보관기간 문서 회신이 우선이며 기한은6월12일입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 402,
+          "end": 441,
+          "quote": "보안 접근기록 보관기간 문서 회신이 우선이며 기한은 6월 12일입니다.",
+          "segment_ids": [
+            "S0009"
+          ]
+        },
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 442,
+          "end": 475,
+          "quote": "실데이터 반입을 막고 있는 사항도 아직 해소되지 않았습니다.",
+          "segment_ids": [
+            "S0010"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting12-f06"
+    },
+    {
+      "id": "meeting12-f07",
+      "claim": "주문번호 앞뒤 공백만 정리하며 전화번호가 같아도 다른 주문을 합치지 않습니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 994,
+          "end": 1090,
+          "quote": "앞뒤 공백만 제거하고 가운데 문자는 손대지 않겠습니다. 또 전화번호가 같아도 주문번호가 다르면 별도의 문의로 유지하겠습니다. 연결 기준을 전화번호 하나로 넓히지 않겠습니다.",
+          "segment_ids": [
+            "S0022",
+            "S0023",
+            "S0024"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting12-f07"
+    },
+    {
+      "id": "meeting12-f08",
+      "claim": "같은반품3회 재전송은1접수,서로다른2품목 반품은2접수로 검증할 계획입니다.",
+      "sales_deal_id": "deal03-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 2629,
+          "end": 2713,
+          "quote": "같은 반품의 세 번 재전송은 하나의 접수로 처리되는지, 서로 다른 두 품목을 한 번씩 요청하는 경우에는 두 접수가 각각 남는지를 분리해 확인하겠습니다.",
+          "segment_ids": [
+            "S0057"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting12-f08"
+    },
+    {
+      "id": "meeting12-f09",
+      "claim": "시험주문60,000원에서20,000원 부분반품 요청 후 잔액40,000원을 검증할 계획입니다.",
+      "sales_deal_id": "deal03-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 2879,
+          "end": 2963,
+          "quote": "가상 시험에서는 총 60,000원 주문에서 20,000원 상품 한 개를 부분반품 요청하고, 요청액 20,000원과 남은 40,000원을 확인하겠습니다.",
+          "segment_ids": [
+            "S0062"
+          ]
+        },
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 2964,
+          "end": 3004,
+          "quote": "이것은 시험값에 대한 검증이며, 실제 환불을 완료했다는 의미는 아닙니다.",
+          "segment_ids": [
+            "S0063"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting12-f09"
+    },
+    {
+      "id": "meeting12-f10",
+      "claim": "일반상담원은 문의·주문번호만 조회하며 결제수단 상세는 제외를 요구합니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 1811,
+          "end": 1864,
+          "quote": "일반 상담원 화면에는 문의 내용과 주문번호만 조회 대상으로 두고 결제수단 상세는 제외하겠습니다.",
+          "segment_ids": [
+            "S0042"
+          ]
+        },
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 1865,
+          "end": 1939,
+          "quote": "권한이 없는 정보는 값이 비어 있는 것처럼 보이게 하지 않고, 권한이 없어 확인할 수 없다는 안내를 표시하는 방향으로 확인하겠습니다.",
+          "segment_ids": [
+            "S0043"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting12-f10"
+    },
+    {
+      "id": "meeting12-f11",
+      "claim": "야간 접수는다음근무시작시배정안을검토하며 자동접수안내는문의종결이 아닙니다.",
+      "sales_deal_id": "deal03-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 3831,
+          "end": 3872,
+          "quote": "야간 접수는 다음 근무 시작 시 담당자를 배정하는 방안으로 검토하겠습니다.",
+          "segment_ids": [
+            "S0079"
+          ]
+        },
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 3873,
+          "end": 3933,
+          "quote": "자동 접수 안내를 보낸 시각과 실제 문의에 답변한 시각은 구분하고, 안내 발송만으로 문의를 닫지 않겠습니다.",
+          "segment_ids": [
+            "S0080"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting12-f11"
+    },
+    {
+      "id": "meeting12-f12",
+      "claim": "야간인계목록에 접수시각·미완료이유·담당부서를 요구하며 개인담당자 미정이 허용됩니다.",
+      "sales_deal_id": "deal03-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 4049,
+          "end": 4101,
+          "quote": "인계 목록에는 접수 시각과 미완료 이유, 확인할 담당 부서를 포함하는 방향으로 검토하겠습니다.",
+          "segment_ids": [
+            "S0083"
+          ]
+        },
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 4102,
+          "end": 4173,
+          "quote": "개인 담당자가 아직 정해지지 않은 경우에는 이름을 임의로 넣지 않고 부서 수준으로 남긴 뒤 추후 배정하는 방식도 허용하겠습니다.",
+          "segment_ids": [
+            "S0084"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting12-f12"
+    },
+    {
+      "id": "meeting12-f13",
+      "claim": "상담사2명이 각기다른순서로15건을 검색하는 재검증을 계획하며 결과는미수집입니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 1587,
+          "end": 1650,
+          "quote": "상담사 두 명이 각자 다른 순서로 열다섯 건을 검색하는 시험은 아직 예약된 절차이고, 검색 결과는 수집 전입니다.",
+          "segment_ids": [
+            "S0037"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting12-f13"
+    },
+    {
+      "id": "meeting12-f14",
+      "claim": "상품판매가격·기지급환불내역 직접수정은 검토범위 밖입니다.",
+      "sales_deal_id": "deal03-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 3127,
+          "end": 3167,
+          "quote": "상품 판매가격과 기지급 환불 내역의 직접 수정은 범위에서 제외하겠습니다.",
+          "segment_ids": [
+            "S0066"
+          ]
+        },
+        {
+          "path": "transcripts/meeting12.txt",
+          "start": 3168,
+          "end": 3238,
+          "quote": "조회와 반품 요청 화면을 중심으로 보고, 결제사 응답을 받게 되는 경우에도 그 상태를 읽어 표시하는 방향으로만 검토하겠습니다.",
+          "segment_ids": [
+            "S0067"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting12-f14"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting12-f01",
+    "meeting12-f02",
+    "meeting12-f03",
+    "meeting12-f04",
+    "meeting12-f05",
+    "meeting12-f06"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

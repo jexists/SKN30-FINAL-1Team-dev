@@ -1,0 +1,954 @@
+{
+  "dataset_id": "salesluv-report-eval-v1",
+  "companies": [
+    {
+      "id": "company01",
+      "name": "은솔정밀(합성)",
+      "region_code": "seoul"
+    },
+    {
+      "id": "company02",
+      "name": "나루물류(합성)",
+      "region_code": "seoul"
+    },
+    {
+      "id": "company03",
+      "name": "모아리빙(합성)",
+      "region_code": "seoul"
+    },
+    {
+      "id": "company04",
+      "name": "다온교육(합성)",
+      "region_code": "seoul"
+    },
+    {
+      "id": "company05",
+      "name": "새결푸드(합성)",
+      "region_code": "seoul"
+    },
+    {
+      "id": "company06",
+      "name": "온유설비(합성)",
+      "region_code": "seoul"
+    },
+    {
+      "id": "company07",
+      "name": "바른유통(합성)",
+      "region_code": "seoul"
+    },
+    {
+      "id": "company08",
+      "name": "해솔에너지(합성)",
+      "region_code": "seoul"
+    },
+    {
+      "id": "company09",
+      "name": "이음콘텐츠(합성)",
+      "region_code": "seoul"
+    }
+  ],
+  "contacts": [
+    {
+      "id": "contact01",
+      "company_id": "company01",
+      "name": "고은서(가상)",
+      "department": "영업기획",
+      "job_title": "책임",
+      "email": "contact01@salesluv-evaluation.invalid",
+      "phone": "000-0000-0001"
+    },
+    {
+      "id": "contact02",
+      "company_id": "company02",
+      "name": "도윤재(가상)",
+      "department": "운송운영",
+      "job_title": "책임",
+      "email": "contact02@salesluv-evaluation.invalid",
+      "phone": "000-0000-0002"
+    },
+    {
+      "id": "contact03",
+      "company_id": "company03",
+      "name": "서이든(가상)",
+      "department": "고객경험",
+      "job_title": "책임",
+      "email": "contact03@salesluv-evaluation.invalid",
+      "phone": "000-0000-0003"
+    },
+    {
+      "id": "contact04",
+      "company_id": "company04",
+      "name": "문시우(가상)",
+      "department": "교육운영",
+      "job_title": "책임",
+      "email": "contact04@salesluv-evaluation.invalid",
+      "phone": "000-0000-0004"
+    },
+    {
+      "id": "contact05",
+      "company_id": "company05",
+      "name": "장하람(가상)",
+      "department": "도매영업",
+      "job_title": "책임",
+      "email": "contact05@salesluv-evaluation.invalid",
+      "phone": "000-0000-0005"
+    },
+    {
+      "id": "contact06",
+      "company_id": "company06",
+      "name": "류온재(가상)",
+      "department": "서비스운영",
+      "job_title": "책임",
+      "email": "contact06@salesluv-evaluation.invalid",
+      "phone": "000-0000-0006"
+    },
+    {
+      "id": "contact07",
+      "company_id": "company07",
+      "name": "민채원(가상)",
+      "department": "가맹지원",
+      "job_title": "책임",
+      "email": "contact07@salesluv-evaluation.invalid",
+      "phone": "000-0000-0007"
+    },
+    {
+      "id": "contact08",
+      "company_id": "company08",
+      "name": "백도하(가상)",
+      "department": "사업개발",
+      "job_title": "책임",
+      "email": "contact08@salesluv-evaluation.invalid",
+      "phone": "000-0000-0008"
+    },
+    {
+      "id": "contact09",
+      "company_id": "company09",
+      "name": "진해온(가상)",
+      "department": "제작관리",
+      "job_title": "책임",
+      "email": "contact09@salesluv-evaluation.invalid",
+      "phone": "000-0000-0009"
+    }
+  ],
+  "deals": [
+    {
+      "id": "deal01-1",
+      "company_id": "company01",
+      "contact_id": "contact01",
+      "title": "견적·고객관리 CRM",
+      "description": "다품종 소량 제조업의 견적 버전·수주전환·고객 요청을 영업 담당자별로 관리하는 업무 소프트웨어 도입.",
+      "deal_amount": 24000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal01-2",
+      "company_id": "company01",
+      "contact_id": "contact01",
+      "title": "ERP 단가 연동",
+      "description": "기존 생산 ERP의 유효기간별 단가를 조회하고 승인된 견적 가격에만 연결하는 읽기 전용 연동.",
+      "deal_amount": 8000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal01-3",
+      "company_id": "company01",
+      "contact_id": "contact01",
+      "title": "현장 영업 교육",
+      "description": "교대근무하는 영업 및 생산 협력 담당자의 CRM 입력 교육과 초기 운영 지원.",
+      "deal_amount": 3000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal02-1",
+      "company_id": "company02",
+      "contact_id": "contact02",
+      "title": "화주 고객관리",
+      "description": "화주별 운송 계약 갱신과 운임 문의를 통합하는 CRM. 배차·차량운행 자체는 기존 배차시스템 유지.",
+      "deal_amount": 30000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal02-2",
+      "company_id": "company02",
+      "contact_id": "contact02",
+      "title": "WMS 운송 연계",
+      "description": "출고 주문과 배송 상태를 읽어 화주 문의에 연결하는 연동. 기존 WMS 계약 범위 확인이 선행 조건.",
+      "deal_amount": 12000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal02-3",
+      "company_id": "company02",
+      "contact_id": "contact02",
+      "title": "거점 담당자 교육",
+      "description": "지점별 화주 응대 담당자의 CRM 사용 교육과 현장 정착 지원.",
+      "deal_amount": 4000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal03-1",
+      "company_id": "company03",
+      "contact_id": "contact03",
+      "title": "상담 통합 CRM",
+      "description": "전화·온라인 상담을 주문과 연결해 중복 문의를 줄이는 고객응대 CRM.",
+      "deal_amount": 18000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal03-2",
+      "company_id": "company03",
+      "contact_id": "contact03",
+      "title": "주문·반품 연동",
+      "description": "주문 상태와 반품 접수 이력을 연결하되 환불 지급 확정은 결제 시스템에서 확인하는 연동.",
+      "deal_amount": 6000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal03-3",
+      "company_id": "company03",
+      "contact_id": "contact03",
+      "title": "야간 운영 지원",
+      "description": "야간 문의 인계와 긴급 장애 연락체계를 위한 운영지원 서비스.",
+      "deal_amount": 5000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal04-1",
+      "company_id": "company04",
+      "contact_id": "contact04",
+      "title": "수강 상담 CRM",
+      "description": "기업·개인 수강 상담을 과정 및 등록 상태와 연결하는 CRM. 실제 결제완료와 상담예약을 분리.",
+      "deal_amount": 18000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal04-2",
+      "company_id": "company04",
+      "contact_id": "contact04",
+      "title": "수강료 결제 연동",
+      "description": "결제·취소 응답을 수강등록 상태와 연결하는 서비스. 교육생 개인정보는 최소 항목만 처리.",
+      "deal_amount": 4500000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal04-3",
+      "company_id": "company04",
+      "contact_id": "contact04",
+      "title": "상담사 실습 교육",
+      "description": "상담 담당자별 등록·변경·취소 상담을 실습하는 교육 서비스.",
+      "deal_amount": 2500000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal05-1",
+      "company_id": "company05",
+      "contact_id": "contact05",
+      "title": "거래처 주문 CRM",
+      "description": "식당·급식 거래처의 주문 조건, 상담, 가격 유효기간을 관리하는 CRM. 창고의 실제 재고와 분리.",
+      "deal_amount": 22000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal05-2",
+      "company_id": "company05",
+      "contact_id": "contact05",
+      "title": "재고·유통기한 조회",
+      "description": "창고시스템의 가용재고와 로트별 유통기한을 조회하는 연동. 예약재고를 판매가능재고에서 분리.",
+      "deal_amount": 9000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal05-3",
+      "company_id": "company05",
+      "contact_id": "contact05",
+      "title": "모바일 영업 교육",
+      "description": "외근 담당자의 모바일 주문 상담 기록과 인계 교육.",
+      "deal_amount": 3500000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal06-1",
+      "company_id": "company06",
+      "contact_id": "contact06",
+      "title": "서비스 이력 CRM",
+      "description": "설비별 문의·방문·수리 후속 이력을 현장 기사와 내근 담당자가 공유하는 CRM.",
+      "deal_amount": 15000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal06-2",
+      "company_id": "company06",
+      "contact_id": "contact06",
+      "title": "설치장비 대장 연동",
+      "description": "장비 식별번호와 설치일·보증조건을 조회하는 대장 연동. 서비스 요청과 실제 수리를 구분.",
+      "deal_amount": 5500000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal06-3",
+      "company_id": "company06",
+      "contact_id": "contact06",
+      "title": "장애 연락 운영지원",
+      "description": "긴급도별 접수·배정·응답 기준을 정하는 초기 운영지원.",
+      "deal_amount": 3000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal07-1",
+      "company_id": "company07",
+      "contact_id": "contact07",
+      "title": "가맹점 지원 CRM",
+      "description": "가맹점별 요청·공지 응답과 본사 승인사항을 공유하는 CRM.",
+      "deal_amount": 28000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal07-2",
+      "company_id": "company07",
+      "contact_id": "contact07",
+      "title": "정산내역 조회 연동",
+      "description": "가맹점 정산 확정본을 조회하는 연동. 예상수수료와 확정정산액 분리.",
+      "deal_amount": 7500000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal07-3",
+      "company_id": "company07",
+      "contact_id": "contact07",
+      "title": "점주 이용 교육",
+      "description": "가맹점주와 본사 담당자에게 서로 다른 접근권한을 설명하는 교육.",
+      "deal_amount": 4000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal08-1",
+      "company_id": "company08",
+      "contact_id": "contact08",
+      "title": "프로젝트 영업 CRM",
+      "description": "사업장별 제안·현장조사·승인 조건을 추적하는 프로젝트 CRM. 내부 검토와 외부 인허가를 분리.",
+      "deal_amount": 32000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal08-2",
+      "company_id": "company08",
+      "contact_id": "contact08",
+      "title": "현장조사 일정 연계",
+      "description": "프로젝트별 조사 일정과 변경 사유를 외부 일정표에서 읽는 연계 기능.",
+      "deal_amount": 7000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal08-3",
+      "company_id": "company08",
+      "contact_id": "contact08",
+      "title": "보안·자료전환 지원",
+      "description": "사업장 도면과 계약 관련 자료의 접근권한 검토 및 초기 전환 지원.",
+      "deal_amount": 6000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal09-1",
+      "company_id": "company09",
+      "contact_id": "contact09",
+      "title": "제작 영업 CRM",
+      "description": "의뢰·제안·계약·제작 착수를 구분하고 고객 피드백과 범위변경을 추적하는 CRM.",
+      "deal_amount": 20000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal09-2",
+      "company_id": "company09",
+      "contact_id": "contact09",
+      "title": "견적 버전 자동화",
+      "description": "촬영일수·수정회차·산출물 범위를 넣어 견적 버전을 관리하는 도구.",
+      "deal_amount": 6500000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    },
+    {
+      "id": "deal09-3",
+      "company_id": "company09",
+      "contact_id": "contact09",
+      "title": "프로듀서 이용 교육",
+      "description": "제작 담당자의 변경요청·견적승인·인계 기록 교육.",
+      "deal_amount": 3000000,
+      "opened_on": "2026-05-29",
+      "stage_code": "needs_validation",
+      "deal_type_code": "new_installation"
+    }
+  ],
+  "meetings": [
+    {
+      "id": "meeting01",
+      "company_id": "company01",
+      "contact_id": "contact01",
+      "deal_ids": [
+        "deal01-1",
+        "deal01-2"
+      ],
+      "title": "견적 버전 관리와 승인 범위 확인",
+      "starts_at": "2026-06-01T09:00:00+09:00",
+      "ends_at": "2026-06-01T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting01.txt"
+    },
+    {
+      "id": "meeting02",
+      "company_id": "company02",
+      "contact_id": "contact02",
+      "deal_ids": [
+        "deal02-1",
+        "deal02-2"
+      ],
+      "title": "화주 문의와 배차 업무의 경계 합의",
+      "starts_at": "2026-06-01T11:00:00+09:00",
+      "ends_at": "2026-06-01T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting02.txt"
+    },
+    {
+      "id": "meeting03",
+      "company_id": "company03",
+      "contact_id": "contact03",
+      "deal_ids": [
+        "deal03-1",
+        "deal03-2"
+      ],
+      "title": "중복 상담과 반품 상태 정의",
+      "starts_at": "2026-06-01T13:00:00+09:00",
+      "ends_at": "2026-06-01T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting03.txt"
+    },
+    {
+      "id": "meeting04",
+      "company_id": "company04",
+      "contact_id": "contact04",
+      "deal_ids": [
+        "deal04-1",
+        "deal04-2"
+      ],
+      "title": "수강 상담 누락과 등록 집계 기준",
+      "starts_at": "2026-06-03T09:00:00+09:00",
+      "ends_at": "2026-06-03T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting04.txt"
+    },
+    {
+      "id": "meeting05",
+      "company_id": "company05",
+      "contact_id": "contact05",
+      "deal_ids": [
+        "deal05-1",
+        "deal05-2"
+      ],
+      "title": "거래처 가격과 재고 용어 정리",
+      "starts_at": "2026-06-03T11:00:00+09:00",
+      "ends_at": "2026-06-03T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting05.txt"
+    },
+    {
+      "id": "meeting06",
+      "company_id": "company06",
+      "contact_id": "contact06",
+      "deal_ids": [
+        "deal06-1",
+        "deal06-2"
+      ],
+      "title": "현장 방문과 수리 완료의 업무 정의",
+      "starts_at": "2026-06-03T13:00:00+09:00",
+      "ends_at": "2026-06-03T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting06.txt"
+    },
+    {
+      "id": "meeting07",
+      "company_id": "company07",
+      "contact_id": "contact07",
+      "deal_ids": [
+        "deal07-1",
+        "deal07-2"
+      ],
+      "title": "가맹점 공유 범위와 본사 승인권자",
+      "starts_at": "2026-06-05T09:00:00+09:00",
+      "ends_at": "2026-06-05T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting07.txt"
+    },
+    {
+      "id": "meeting08",
+      "company_id": "company08",
+      "contact_id": "contact08",
+      "deal_ids": [
+        "deal08-1",
+        "deal08-2",
+        "deal08-3"
+      ],
+      "title": "프로젝트 지연 원인과 문서 접근 범위",
+      "starts_at": "2026-06-05T11:00:00+09:00",
+      "ends_at": "2026-06-05T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting08.txt"
+    },
+    {
+      "id": "meeting09",
+      "company_id": "company09",
+      "contact_id": "contact09",
+      "deal_ids": [
+        "deal09-1",
+        "deal09-2"
+      ],
+      "title": "수정 회차와 제작 범위 변경 관리",
+      "starts_at": "2026-06-05T13:00:00+09:00",
+      "ends_at": "2026-06-05T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting09.txt"
+    },
+    {
+      "id": "meeting10",
+      "company_id": "company01",
+      "contact_id": "contact01",
+      "deal_ids": [
+        "deal01-1",
+        "deal01-2"
+      ],
+      "title": "수정 제안서 수신과 시범 평가 조건",
+      "starts_at": "2026-06-08T09:00:00+09:00",
+      "ends_at": "2026-06-08T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting10.txt"
+    },
+    {
+      "id": "meeting11",
+      "company_id": "company02",
+      "contact_id": "contact02",
+      "deal_ids": [
+        "deal02-1",
+        "deal02-2"
+      ],
+      "title": "예산 축소에 따른 시범 범위 재설정",
+      "starts_at": "2026-06-08T11:00:00+09:00",
+      "ends_at": "2026-06-08T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting11.txt"
+    },
+    {
+      "id": "meeting12",
+      "company_id": "company03",
+      "contact_id": "contact03",
+      "deal_ids": [
+        "deal03-1",
+        "deal03-2",
+        "deal03-3"
+      ],
+      "title": "보안 검토 보완과 비식별 시범 실행",
+      "starts_at": "2026-06-08T13:00:00+09:00",
+      "ends_at": "2026-06-08T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting12.txt"
+    },
+    {
+      "id": "meeting13",
+      "company_id": "company04",
+      "contact_id": "contact04",
+      "deal_ids": [
+        "deal04-1",
+        "deal04-3"
+      ],
+      "title": "표본 통과와 예산 승인 요청",
+      "starts_at": "2026-06-10T09:00:00+09:00",
+      "ends_at": "2026-06-10T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting13.txt"
+    },
+    {
+      "id": "meeting14",
+      "company_id": "company05",
+      "contact_id": "contact05",
+      "deal_ids": [
+        "deal05-1",
+        "deal05-2"
+      ],
+      "title": "단가 유효기간 테스트와 예약재고 오류",
+      "starts_at": "2026-06-10T11:00:00+09:00",
+      "ends_at": "2026-06-10T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting14.txt"
+    },
+    {
+      "id": "meeting15",
+      "company_id": "company06",
+      "contact_id": "contact06",
+      "deal_ids": [
+        "deal06-1",
+        "deal06-2",
+        "deal06-3"
+      ],
+      "title": "부품 대기 상태 시연과 응답 기준",
+      "starts_at": "2026-06-10T13:00:00+09:00",
+      "ends_at": "2026-06-10T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting15.txt"
+    },
+    {
+      "id": "meeting16",
+      "company_id": "company07",
+      "contact_id": "contact07",
+      "deal_ids": [
+        "deal07-1",
+        "deal07-2",
+        "deal07-3"
+      ],
+      "title": "공유 링크의 권한 문제 발견",
+      "starts_at": "2026-06-12T09:00:00+09:00",
+      "ends_at": "2026-06-12T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting16.txt"
+    },
+    {
+      "id": "meeting17",
+      "company_id": "company08",
+      "contact_id": "contact08",
+      "deal_ids": [
+        "deal08-1",
+        "deal08-2",
+        "deal08-3"
+      ],
+      "title": "보안 승인 조건과 일정 변경 사례",
+      "starts_at": "2026-06-12T11:00:00+09:00",
+      "ends_at": "2026-06-12T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting17.txt"
+    },
+    {
+      "id": "meeting18",
+      "company_id": "company09",
+      "contact_id": "contact09",
+      "deal_ids": [
+        "deal09-1",
+        "deal09-2",
+        "deal09-3"
+      ],
+      "title": "월 단위 요구와 추가 산출물 견적 비교",
+      "starts_at": "2026-06-12T13:00:00+09:00",
+      "ends_at": "2026-06-12T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting18.txt"
+    },
+    {
+      "id": "meeting19",
+      "company_id": "company01",
+      "contact_id": "contact01",
+      "deal_ids": [
+        "deal01-1",
+        "deal01-3"
+      ],
+      "title": "시범 결과와 미해결 계약 조항 확인",
+      "starts_at": "2026-06-15T09:00:00+09:00",
+      "ends_at": "2026-06-15T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting19.txt"
+    },
+    {
+      "id": "meeting20",
+      "company_id": "company02",
+      "contact_id": "contact02",
+      "deal_ids": [
+        "deal02-1",
+        "deal02-3"
+      ],
+      "title": "시범 보류 사유와 인력 확보 조건",
+      "starts_at": "2026-06-15T11:00:00+09:00",
+      "ends_at": "2026-06-15T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting20.txt"
+    },
+    {
+      "id": "meeting21",
+      "company_id": "company03",
+      "contact_id": "contact03",
+      "deal_ids": [
+        "deal03-1",
+        "deal03-2"
+      ],
+      "title": "검색 오류 해결과 보안 승인 대기",
+      "starts_at": "2026-06-15T13:00:00+09:00",
+      "ends_at": "2026-06-15T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting21.txt"
+    },
+    {
+      "id": "meeting22",
+      "company_id": "company04",
+      "contact_id": "contact04",
+      "deal_ids": [
+        "deal04-1",
+        "deal04-2",
+        "deal04-3"
+      ],
+      "title": "CRM 계약 체결과 결제 연동 보류",
+      "starts_at": "2026-06-17T09:00:00+09:00",
+      "ends_at": "2026-06-17T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting22.txt"
+    },
+    {
+      "id": "meeting23",
+      "company_id": "company05",
+      "contact_id": "contact05",
+      "deal_ids": [
+        "deal05-1",
+        "deal05-2",
+        "deal05-3"
+      ],
+      "title": "재고 오류 수정과 도입 우선순위 변경",
+      "starts_at": "2026-06-17T11:00:00+09:00",
+      "ends_at": "2026-06-17T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting23.txt"
+    },
+    {
+      "id": "meeting24",
+      "company_id": "company06",
+      "contact_id": "contact06",
+      "deal_ids": [
+        "deal06-1",
+        "deal06-2"
+      ],
+      "title": "표시 수정 확인과 계약조건 검토",
+      "starts_at": "2026-06-17T13:00:00+09:00",
+      "ends_at": "2026-06-17T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting24.txt"
+    },
+    {
+      "id": "meeting25",
+      "company_id": "company07",
+      "contact_id": "contact07",
+      "deal_ids": [
+        "deal07-1",
+        "deal07-3"
+      ],
+      "title": "권한 보완 확인과 점주 계정 축소안",
+      "starts_at": "2026-06-19T09:00:00+09:00",
+      "ends_at": "2026-06-19T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting25.txt"
+    },
+    {
+      "id": "meeting26",
+      "company_id": "company08",
+      "contact_id": "contact08",
+      "deal_ids": [
+        "deal08-1",
+        "deal08-3"
+      ],
+      "title": "복수 사유 보완과 다운로드 제한 검증",
+      "starts_at": "2026-06-19T11:00:00+09:00",
+      "ends_at": "2026-06-19T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting26.txt"
+    },
+    {
+      "id": "meeting27",
+      "company_id": "company09",
+      "contact_id": "contact09",
+      "deal_ids": [
+        "deal09-1",
+        "deal09-2"
+      ],
+      "title": "연간 CRM 제안 거절과 견적도구 분리 검토",
+      "starts_at": "2026-06-19T13:00:00+09:00",
+      "ends_at": "2026-06-19T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting27.txt"
+    },
+    {
+      "id": "meeting28",
+      "company_id": "company01",
+      "contact_id": "contact01",
+      "deal_ids": [
+        "deal01-1",
+        "deal01-2",
+        "deal01-3"
+      ],
+      "title": "CRM 서명 확인과 교육·연동 범위 분리",
+      "starts_at": "2026-06-22T09:00:00+09:00",
+      "ends_at": "2026-06-22T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting28.txt"
+    },
+    {
+      "id": "meeting29",
+      "company_id": "company02",
+      "contact_id": "contact02",
+      "deal_ids": [
+        "deal02-1",
+        "deal02-2",
+        "deal02-3"
+      ],
+      "title": "보류 유지와 다음 달 재검토 조건",
+      "starts_at": "2026-06-22T11:00:00+09:00",
+      "ends_at": "2026-06-22T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting29.txt"
+    },
+    {
+      "id": "meeting30",
+      "company_id": "company03",
+      "contact_id": "contact03",
+      "deal_ids": [
+        "deal03-1",
+        "deal03-2",
+        "deal03-3"
+      ],
+      "title": "보안 조건부 허용과 계약 유보",
+      "starts_at": "2026-06-22T13:00:00+09:00",
+      "ends_at": "2026-06-22T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting30.txt"
+    },
+    {
+      "id": "meeting31",
+      "company_id": "company04",
+      "contact_id": "contact04",
+      "deal_ids": [
+        "deal04-1",
+        "deal04-3"
+      ],
+      "title": "운영 계정 준비와 교육 일정 미정 확인",
+      "starts_at": "2026-06-24T09:00:00+09:00",
+      "ends_at": "2026-06-24T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting31.txt"
+    },
+    {
+      "id": "meeting32",
+      "company_id": "company05",
+      "contact_id": "contact05",
+      "deal_ids": [
+        "deal05-1",
+        "deal05-2",
+        "deal05-3"
+      ],
+      "title": "현장 의견 수신과 다음 달 예산 재검토",
+      "starts_at": "2026-06-24T11:00:00+09:00",
+      "ends_at": "2026-06-24T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting32.txt"
+    },
+    {
+      "id": "meeting33",
+      "company_id": "company06",
+      "contact_id": "contact06",
+      "deal_ids": [
+        "deal06-1",
+        "deal06-2",
+        "deal06-3"
+      ],
+      "title": "분납 계약 서명과 이행 준비",
+      "starts_at": "2026-06-24T13:00:00+09:00",
+      "ends_at": "2026-06-24T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting33.txt"
+    },
+    {
+      "id": "meeting34",
+      "company_id": "company07",
+      "contact_id": "contact07",
+      "deal_ids": [
+        "deal07-1",
+        "deal07-2",
+        "deal07-3"
+      ],
+      "title": "본사안 결정 보류와 정책 승인 요청",
+      "starts_at": "2026-06-26T09:00:00+09:00",
+      "ends_at": "2026-06-26T09:45:00+09:00",
+      "modality": "visit",
+      "transcript_file": "transcripts/meeting34.txt"
+    },
+    {
+      "id": "meeting35",
+      "company_id": "company08",
+      "contact_id": "contact08",
+      "deal_ids": [
+        "deal08-1",
+        "deal08-2",
+        "deal08-3"
+      ],
+      "title": "제한 자료 반입 허용과 다음 달 우선과제",
+      "starts_at": "2026-06-26T11:00:00+09:00",
+      "ends_at": "2026-06-26T11:45:00+09:00",
+      "modality": "online",
+      "transcript_file": "transcripts/meeting35.txt"
+    },
+    {
+      "id": "meeting36",
+      "company_id": "company09",
+      "contact_id": "contact09",
+      "deal_ids": [
+        "deal09-1",
+        "deal09-2",
+        "deal09-3"
+      ],
+      "title": "시연 종료 확인과 견적도구 보류",
+      "starts_at": "2026-06-26T13:00:00+09:00",
+      "ends_at": "2026-06-26T13:45:00+09:00",
+      "modality": "phone",
+      "transcript_file": "transcripts/meeting36.txt"
+    }
+  ]
+}

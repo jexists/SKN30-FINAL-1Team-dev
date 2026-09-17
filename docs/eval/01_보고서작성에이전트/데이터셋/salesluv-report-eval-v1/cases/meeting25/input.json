@@ -1,0 +1,1022 @@
+{
+  "transcript": "영업 담당자: 민채원님, 오늘은 권한 보완 결과를 확인한 뒤 현재 사용 범위와 점주 계정 운영 방식을 나눠서 살펴보겠습니다. 본사에서 바로 사용할 인원과 점주 쪽의 다음 단계가 서로 다르게 논의되고 있다고 이해했습니다.\n민채원: 네. 기술 쪽에서 확인할 부분은 어느 정도 정리됐지만, 재무본부장님은 처음부터 전체 계정을 한꺼번에 열기보다는 본사 사용자만 먼저 두는 방향을 말씀하셨어요. 그래서 오늘은 실제로 어디까지 진행할지 구분하고 싶습니다.\n영업 담당자: 가맹점 지원 CRM 쪽부터 말씀드리면, 6월 15일에 받은 두 가지 테스트 결과에서는 링크 두 종류가 모두 차단된 것으로 확인됐습니다. 다른 점포가 접근하는 경우와 이미 폐기된 링크를 이용하는 경우가 모두 막혔다는 내용입니다.\n민채원: 그 결과라면 권한 보완 자체는 괜찮다는 뜻인가요? 특히 다른 점포의 요청이나 공지에 접근하는 문제와, 더 이상 쓰지 않는 링크가 남아 있는 문제를 함께 본 게 맞는지 궁금합니다.\n영업 담당자: 네, 이번에 받은 두 테스트 결과상 그 두 경로는 차단됐습니다. 다만 이것과 실제 계정을 누구에게 먼저 줄지는 별도 문제로 보고 있습니다. 현재 말씀하신 초기 범위는 본사 열두 명이고, 점주 스물네 명은 뒤에서 다시 검토하는 안입니다.\n민채원: 맞습니다. 점주 스물네 명을 당장 제외하는 이유를 가격만으로 이해하시면 곤란해요. 재무본부장님은 점주가 요청을 직접 올리고 공지를 확인하는 운영정책이 먼저 정해져야 한다고 보셨어요.\n영업 담당자: 운영정책이 정해지지 않은 상태에서 점주 계정을 먼저 열면, 권한은 있어도 실제 업무 흐름이 모호해질 수 있다는 말씀이군요. 그러면 현재 범위 축소의 주된 원인은 가격보다 점주 운영정책 미정이고, 구매 방식 자체는 아직 결정되지 않은 상태로 이해하면 될까요?\n민채원: 네. 아직 어느 안으로 구매할지 결정하지 않았습니다. 가격이 부담돼서만 미루는 것은 아니고, 점주가 무엇을 직접 처리할지 본사에서 어디까지 대신할지부터 정리해야 합니다.\n영업 담당자: 그렇다면 점주 계정이 없는 동안에는 본사 담당자가 점주의 요청을 대신 입력하는 흐름을 전제로 살펴봐야겠네요. 그 경우 본사 사용자는 요청을 등록할 때 어느 점포의 건인지 구분할 수 있어야 할 텐데, 그 부분은 교육에서 실제로 다뤄야 할 항목으로 보입니다.\n민채원: 그 부분이 중요합니다. 점주가 직접 입력하지 않는 기간에는 본사 담당자가 여러 점포의 요청을 대신 넣게 되니까요. 담당자가 입력 화면에서 해당 요청이 어느 점포의 것인지 선택하는 절차를 익혀야 합니다.\n영업 담당자: CRM 제안은 우선 본사 열두 명이 사용하는 조건과, 나중에 점주 계정을 추가할 때 적용할 조건을 나누는 방식이 적절하겠습니다. 본사만 쓰는 가격과 점주 스물네 명을 추가하는 조건을 한 덩어리로 제시하지 않고 각각 살펴볼 수 있게 하겠습니다.\n민채원: 네, 그 구분이 있어야 재무본부장님이 현재 필요한 범위와 이후 선택지를 나눠서 보실 수 있어요. 다만 지금 자리에서 구매 범위를 확정하는 것은 아닙니다. 운영정책을 확인한 뒤 어느 안이 맞는지 판단해야 합니다.\n영업 담당자: 알겠습니다. 그러면 본사 열두 명을 먼저 사용하는 안은 현재 검토 범위로 두고, 점주 스물네 명은 추후 검토 조건으로 남겨두겠습니다. 두 테스트에서 링크 차단이 확인됐다는 점과 계정 범위를 줄이는 판단은 서로 별개의 기준으로 설명하겠습니다.\n민채원: 좋습니다. 기술 검토가 보완됐다는 이유로 점주 계정까지 바로 시작하는 것으로 받아들여지면 안 됩니다. 지금은 본사 사용자만 놓고 보는 안이고, 점주 쪽은 운영정책이 정리된 뒤 다시 보는 상황입니다.\n영업 담당자: 교육 부분도 같은 범위로 맞추면 될까요? 본사 담당자에게는 서로 다른 접근권한을 설명하되, 점주에게도 교육을 진행하는 일정으로 이해하면 되는지 확인하고 싶습니다.\n민채원: 점주 교육은 아직 실시하지 않았습니다. 점주에게 교육한 것으로 이해되지 않도록 본사 사용자 안내만 준비해 주세요. 본사 담당자 열두 명을 대상으로 한 교육안으로 다시 살펴보는 것이 맞습니다.\n영업 담당자: 네, 교육은 본사 열두 명 대상안으로만 재검토하겠습니다. 내용은 본사 담당자와 가맹점주가 같은 화면을 보더라도 접근권한이 다를 수 있다는 점, 그리고 본사 담당자가 점포 정보를 대신 입력할 때 해당 점포를 선택하는 실습을 중심으로 잡으면 되겠습니다.\n민채원: 그 방향이면 됩니다. 특히 단순히 권한 차이를 설명하는 데서 끝나지 말고, 본사 담당자가 요청을 입력할 때 어느 점포의 건인지 선택하는 과정을 직접 연습할 수 있어야 해요. 점주가 직접 입력하는 절차를 교육하는 것은 지금 범위가 아닙니다.\n영업 담당자: 교육 날짜는 지금 정하지 않고 예산 승인 뒤에 잡는 것으로 이해했습니다. 현재는 본사 사용자 안내의 대상과 필요한 실습 내용을 정리하는 단계로 두겠습니다.\n민채원: 네. 예산 승인이 먼저예요. 교육 날짜를 지금 잡아두면 이미 진행이 정해진 것처럼 보일 수 있으니, 승인 뒤에 일정 이야기를 하겠습니다.\n영업 담당자: 제안 자료 전달 일정도 확인하겠습니다. 본사 열두 명을 기준으로 한 가격과 점주를 추가할 때의 조건을 분리해서 6월 22일까지 보내 달라는 요청으로 이해하면 되나요?\n민채원: 맞아요. 6월 22일까지 보내 주세요. 제가 그 자료를 재무본부장님 검토회의에 올릴 예정입니다. 회의 전에 전달만 완료되면 되고, 그 자리에서 바로 결론이 난다고 보시면 안 됩니다.\n영업 담당자: 본사 열두 명 가격과 점주 추가 조건을 나누고, 현재 결정되지 않은 구매 범위와 점주 운영정책이 남아 있다는 전제를 함께 담아 전달하겠습니다. 교육은 별도로 본사 열두 명 대상안만 검토하고, 점주 교육은 실시하지 않은 상태로 두겠습니다.\n민채원: 네, 그 구분이 정확합니다. CRM은 본사 열두 명을 우선 보는 범위이고 점주 스물네 명은 추후 검토입니다. 교육도 본사 사용자 안내만 준비하고, 점주 교육은 아직 없습니다.\n영업 담당자: 마지막으로 확인하면, 6월 15일 테스트에서 다른 점포 접근과 폐기 링크가 모두 차단된 것은 확인됐지만, 그것만으로 전체 계정 사용을 확정한 것은 아닙니다. 현재는 본사 열두 명과 이후 점주 추가 조건을 나눠 살펴보고, 구매 결정과 교육 일정은 각각 필요한 확인 뒤에 남겨두는 상황입니다.\n민채원: 네. 재무본부장님 검토회의에 올릴 자료가 필요하니 6월 22일까지 분리된 조건을 보내 주세요. 승인 여부는 회의 후에 알려 드릴 수 있고, 교육 날짜도 예산 승인 뒤에 다시 정하겠습니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "92cf4e2fee7063fe39bf8e2d15f5f6ad1807a9a334e118741b8f744e09364a01",
+    "selected_deal_ids": [
+      "dac86e90-364f-5740-b590-ee2d705c0e50",
+      "9997f1de-d368-5518-a8e2-aa982fdb4158"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 69,
+          "text": "영업 담당자: 민채원님, 오늘은 권한 보완 결과를 확인한 뒤 현재 사용 범위와 점주 계정 운영 방식을 나눠서 살펴보겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 70,
+          "end": 122,
+          "text": "본사에서 바로 사용할 인원과 점주 쪽의 다음 단계가 서로 다르게 논의되고 있다고 이해했습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 123,
+          "end": 130,
+          "text": "민채원: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 131,
+          "end": 215,
+          "text": "기술 쪽에서 확인할 부분은 어느 정도 정리됐지만, 재무본부장님은 처음부터 전체 계정을 한꺼번에 열기보다는 본사 사용자만 먼저 두는 방향을 말씀하셨어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 216,
+          "end": 248,
+          "text": "그래서 오늘은 실제로 어디까지 진행할지 구분하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 249,
+          "end": 332,
+          "text": "영업 담당자: 가맹점 지원 CRM 쪽부터 말씀드리면, 6월 15일에 받은 두 가지 테스트 결과에서는 링크 두 종류가 모두 차단된 것으로 확인됐습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 333,
+          "end": 383,
+          "text": "다른 점포가 접근하는 경우와 이미 폐기된 링크를 이용하는 경우가 모두 막혔다는 내용입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 384,
+          "end": 416,
+          "text": "민채원: 그 결과라면 권한 보완 자체는 괜찮다는 뜻인가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 417,
+          "end": 488,
+          "text": "특히 다른 점포의 요청이나 공지에 접근하는 문제와, 더 이상 쓰지 않는 링크가 남아 있는 문제를 함께 본 게 맞는지 궁금합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 489,
+          "end": 532,
+          "text": "영업 담당자: 네, 이번에 받은 두 테스트 결과상 그 두 경로는 차단됐습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 533,
+          "end": 574,
+          "text": "다만 이것과 실제 계정을 누구에게 먼저 줄지는 별도 문제로 보고 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 575,
+          "end": 628,
+          "text": "현재 말씀하신 초기 범위는 본사 열두 명이고, 점주 스물네 명은 뒤에서 다시 검토하는 안입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 629,
+          "end": 639,
+          "text": "민채원: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 640,
+          "end": 679,
+          "text": "점주 스물네 명을 당장 제외하는 이유를 가격만으로 이해하시면 곤란해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 680,
+          "end": 735,
+          "text": "재무본부장님은 점주가 요청을 직접 올리고 공지를 확인하는 운영정책이 먼저 정해져야 한다고 보셨어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 736,
+          "end": 812,
+          "text": "영업 담당자: 운영정책이 정해지지 않은 상태에서 점주 계정을 먼저 열면, 권한은 있어도 실제 업무 흐름이 모호해질 수 있다는 말씀이군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 813,
+          "end": 887,
+          "text": "그러면 현재 범위 축소의 주된 원인은 가격보다 점주 운영정책 미정이고, 구매 방식 자체는 아직 결정되지 않은 상태로 이해하면 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 888,
+          "end": 895,
+          "text": "민채원: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 896,
+          "end": 922,
+          "text": "아직 어느 안으로 구매할지 결정하지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 923,
+          "end": 987,
+          "text": "가격이 부담돼서만 미루는 것은 아니고, 점주가 무엇을 직접 처리할지 본사에서 어디까지 대신할지부터 정리해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 988,
+          "end": 1056,
+          "text": "영업 담당자: 그렇다면 점주 계정이 없는 동안에는 본사 담당자가 점주의 요청을 대신 입력하는 흐름을 전제로 살펴봐야겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 1057,
+          "end": 1138,
+          "text": "그 경우 본사 사용자는 요청을 등록할 때 어느 점포의 건인지 구분할 수 있어야 할 텐데, 그 부분은 교육에서 실제로 다뤄야 할 항목으로 보입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 1139,
+          "end": 1156,
+          "text": "민채원: 그 부분이 중요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 1157,
+          "end": 1207,
+          "text": "점주가 직접 입력하지 않는 기간에는 본사 담당자가 여러 점포의 요청을 대신 넣게 되니까요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1208,
+          "end": 1256,
+          "text": "담당자가 입력 화면에서 해당 요청이 어느 점포의 것인지 선택하는 절차를 익혀야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1257,
+          "end": 1336,
+          "text": "영업 담당자: CRM 제안은 우선 본사 열두 명이 사용하는 조건과, 나중에 점주 계정을 추가할 때 적용할 조건을 나누는 방식이 적절하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1337,
+          "end": 1400,
+          "text": "본사만 쓰는 가격과 점주 스물네 명을 추가하는 조건을 한 덩어리로 제시하지 않고 각각 살펴볼 수 있게 하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1401,
+          "end": 1459,
+          "text": "민채원: 네, 그 구분이 있어야 재무본부장님이 현재 필요한 범위와 이후 선택지를 나눠서 보실 수 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1460,
+          "end": 1491,
+          "text": "다만 지금 자리에서 구매 범위를 확정하는 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1492,
+          "end": 1523,
+          "text": "운영정책을 확인한 뒤 어느 안이 맞는지 판단해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1524,
+          "end": 1538,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1539,
+          "end": 1606,
+          "text": "그러면 본사 열두 명을 먼저 사용하는 안은 현재 검토 범위로 두고, 점주 스물네 명은 추후 검토 조건으로 남겨두겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1607,
+          "end": 1666,
+          "text": "두 테스트에서 링크 차단이 확인됐다는 점과 계정 범위를 줄이는 판단은 서로 별개의 기준으로 설명하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1667,
+          "end": 1677,
+          "text": "민채원: 좋습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1678,
+          "end": 1728,
+          "text": "기술 검토가 보완됐다는 이유로 점주 계정까지 바로 시작하는 것으로 받아들여지면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1729,
+          "end": 1782,
+          "text": "지금은 본사 사용자만 놓고 보는 안이고, 점주 쪽은 운영정책이 정리된 뒤 다시 보는 상황입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1783,
+          "end": 1813,
+          "text": "영업 담당자: 교육 부분도 같은 범위로 맞추면 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1814,
+          "end": 1881,
+          "text": "본사 담당자에게는 서로 다른 접근권한을 설명하되, 점주에게도 교육을 진행하는 일정으로 이해하면 되는지 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1882,
+          "end": 1908,
+          "text": "민채원: 점주 교육은 아직 실시하지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1909,
+          "end": 1950,
+          "text": "점주에게 교육한 것으로 이해되지 않도록 본사 사용자 안내만 준비해 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1951,
+          "end": 1993,
+          "text": "본사 담당자 열두 명을 대상으로 한 교육안으로 다시 살펴보는 것이 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1994,
+          "end": 2033,
+          "text": "영업 담당자: 네, 교육은 본사 열두 명 대상안으로만 재검토하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 2034,
+          "end": 2141,
+          "text": "내용은 본사 담당자와 가맹점주가 같은 화면을 보더라도 접근권한이 다를 수 있다는 점, 그리고 본사 담당자가 점포 정보를 대신 입력할 때 해당 점포를 선택하는 실습을 중심으로 잡으면 되겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 2142,
+          "end": 2158,
+          "text": "민채원: 그 방향이면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 2159,
+          "end": 2243,
+          "text": "특히 단순히 권한 차이를 설명하는 데서 끝나지 말고, 본사 담당자가 요청을 입력할 때 어느 점포의 건인지 선택하는 과정을 직접 연습할 수 있어야 해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 2244,
+          "end": 2280,
+          "text": "점주가 직접 입력하는 절차를 교육하는 것은 지금 범위가 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 2281,
+          "end": 2329,
+          "text": "영업 담당자: 교육 날짜는 지금 정하지 않고 예산 승인 뒤에 잡는 것으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 2330,
+          "end": 2375,
+          "text": "현재는 본사 사용자 안내의 대상과 필요한 실습 내용을 정리하는 단계로 두겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 2376,
+          "end": 2383,
+          "text": "민채원: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0050",
+          "start": 2384,
+          "end": 2396,
+          "text": "예산 승인이 먼저예요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0051",
+          "start": 2397,
+          "end": 2457,
+          "text": "교육 날짜를 지금 잡아두면 이미 진행이 정해진 것처럼 보일 수 있으니, 승인 뒤에 일정 이야기를 하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0052",
+          "start": 2458,
+          "end": 2487,
+          "text": "영업 담당자: 제안 자료 전달 일정도 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0053",
+          "start": 2488,
+          "end": 2558,
+          "text": "본사 열두 명을 기준으로 한 가격과 점주를 추가할 때의 조건을 분리해서 6월 22일까지 보내 달라는 요청으로 이해하면 되나요?"
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0054",
+          "start": 2559,
+          "end": 2568,
+          "text": "민채원: 맞아요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0055",
+          "start": 2569,
+          "end": 2585,
+          "text": "6월 22일까지 보내 주세요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0056",
+          "start": 2586,
+          "end": 2617,
+          "text": "제가 그 자료를 재무본부장님 검토회의에 올릴 예정입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0057",
+          "start": 2618,
+          "end": 2665,
+          "text": "회의 전에 전달만 완료되면 되고, 그 자리에서 바로 결론이 난다고 보시면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0058",
+          "start": 2666,
+          "end": 2753,
+          "text": "영업 담당자: 본사 열두 명 가격과 점주 추가 조건을 나누고, 현재 결정되지 않은 구매 범위와 점주 운영정책이 남아 있다는 전제를 함께 담아 전달하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0059",
+          "start": 2754,
+          "end": 2806,
+          "text": "교육은 별도로 본사 열두 명 대상안만 검토하고, 점주 교육은 실시하지 않은 상태로 두겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0060",
+          "start": 2807,
+          "end": 2827,
+          "text": "민채원: 네, 그 구분이 정확합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0061",
+          "start": 2828,
+          "end": 2872,
+          "text": "CRM은 본사 열두 명을 우선 보는 범위이고 점주 스물네 명은 추후 검토입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0062",
+          "start": 2873,
+          "end": 2909,
+          "text": "교육도 본사 사용자 안내만 준비하고, 점주 교육은 아직 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0063",
+          "start": 2910,
+          "end": 3005,
+          "text": "영업 담당자: 마지막으로 확인하면, 6월 15일 테스트에서 다른 점포 접근과 폐기 링크가 모두 차단된 것은 확인됐지만, 그것만으로 전체 계정 사용을 확정한 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0064",
+          "start": 3006,
+          "end": 3079,
+          "text": "현재는 본사 열두 명과 이후 점주 추가 조건을 나눠 살펴보고, 구매 결정과 교육 일정은 각각 필요한 확인 뒤에 남겨두는 상황입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0065",
+          "start": 3080,
+          "end": 3087,
+          "text": "민채원: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0066",
+          "start": 3088,
+          "end": 3137,
+          "text": "재무본부장님 검토회의에 올릴 자료가 필요하니 6월 22일까지 분리된 조건을 보내 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0067",
+          "start": 3138,
+          "end": 3189,
+          "text": "승인 여부는 회의 후에 알려 드릴 수 있고, 교육 날짜도 예산 승인 뒤에 다시 정하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-19T09:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "9d8838b8-9cf9-5760-a9aa-bb08255ef35b",
+      "name": "바른유통(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "b2f52be4-d1a7-5007-b5b2-5c7f772c5045",
+      "name": "민채원(가상)"
+    },
+    "activity": {
+      "id": "6fce529b-84cc-5f5e-b4c8-8b9c5e81a91c",
+      "starts_at": "2026-06-19T09:00:00+09:00",
+      "title": "권한 보완 확인과 점주 계정 축소안"
+    },
+    "deals": [
+      {
+        "id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "company_id": "company07",
+        "contact_id": "contact07",
+        "title": "가맹점 지원 CRM",
+        "description": "가맹점별 요청·공지 응답과 본사 승인사항을 공유하는 CRM.",
+        "deal_amount": 28000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "observed_state": "공유링크 권한결함;재검토 필요"
+      },
+      {
+        "id": "9997f1de-d368-5518-a8e2-aa982fdb4158",
+        "company_id": "company07",
+        "contact_id": "contact07",
+        "title": "점주 이용 교육",
+        "description": "가맹점주와 본사 담당자에게 서로 다른 접근권한을 설명하는 교육.",
+        "deal_amount": 4000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "9997f1de-d368-5518-a8e2-aa982fdb4158",
+        "observed_state": "점주교육 미정"
+      }
+    ],
+    "previous_reports": [
+      {
+        "sales_deal_id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "report_date": "2026-06-05",
+        "body": "본사12명·점주24명 접근을 분리하며 정보시스템팀과 재무본부장 승인이 필요합니다. 가상2점포의 상호접근 차단이 시범조건이며 연2,800만 원은 검토용 제안입니다.",
+        "submission_id": "a6ba4d45-6c0b-5f37-a224-9396be85f3ae"
+      },
+      {
+        "sales_deal_id": "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+        "report_date": "2026-06-05",
+        "body": "초기 정산연동은 확정본 조회이며 예상수수료·확정액·실제지급은 구분됩니다.",
+        "submission_id": "a6ba4d45-6c0b-5f37-a224-9396be85f3ae"
+      },
+      {
+        "sales_deal_id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "report_date": "2026-06-12",
+        "body": "목록 접근차단은 확인됐으나 공유링크가 다른점포 계정에서 열리는 문제가 발견됐습니다. 비활성화된가상계정1개의기존링크접근도차단하는시험을 요구합니다. 본사계정도담당2점포한정권한이필요하며 담당변경후이전권한회수를 검토합니다. 접근거절은자료삭제와구분해안내하되 타점포이름·금액을노출하지않아야합니다. 정보시스템팀은링크차단·가맹지원팀은담당변경을검토하고 구매결정은미확정입니다.",
+        "submission_id": "a867b045-11ee-507f-b37b-268f33d4b6b5"
+      },
+      {
+        "sales_deal_id": "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+        "report_date": "2026-06-12",
+        "body": "공유권한 문제 해결 전 정산자료 연결을 보류하며 실제정산자료는 미전달입니다. 정산문서교체는구버전폐기·신버전안내가필요하며 문서공개취소와지급취소는 다릅니다. 가상예상수수료100,000-판촉조정20,000=확정80,000원을조회예시로 사용합니다. 실정산전달은권한검토·공개책임자지정후가능하며 기한은미정입니다.",
+        "submission_id": "a867b045-11ee-507f-b37b-268f33d4b6b5"
+      },
+      {
+        "sales_deal_id": "9997f1de-d368-5518-a8e2-aa982fdb4158",
+        "report_date": "2026-06-12",
+        "body": "점주교육 일정·참석자는 미정이고 본사 권한검토 설명만 먼저 요청합니다. 교육설명은가상점포화면을사용하며 실제점주계정공유는원하지않습니다.",
+        "submission_id": "a867b045-11ee-507f-b37b-268f33d4b6b5"
+      }
+    ],
+    "trade_history": []
+  },
+  "attachments": []
+}

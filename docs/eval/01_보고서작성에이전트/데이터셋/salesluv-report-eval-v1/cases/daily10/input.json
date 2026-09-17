@@ -1,0 +1,166 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-06-22",
+  "period_start": null,
+  "period_end": null,
+  "sales_deal_id": null,
+  "template_snapshot": {
+    "fields": [
+      {
+        "id": "body",
+        "label": "본문"
+      }
+    ]
+  },
+  "content": {
+    "values": {}
+  },
+  "transcript": null,
+  "guidance": null,
+  "report_sources": {
+    "reports": [
+      {
+        "id": "5b9527e7-4d06-5c5f-bebc-58c02724b128",
+        "submission_id": "8cfcb3c8-c5e1-511c-9847-a38822400d8e",
+        "source_activity_id": "5b9527e7-4d06-5c5f-bebc-58c02724b128",
+        "report_date": "2026-06-22",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+        "title": "견적·고객관리 CRM",
+        "values": {
+          "body": "6월 22일 CRM 20명·부가세 별도 연 2,400만 원 계약이 양사 서명 완료됐으며 서비스 개시는 7월 1일입니다. 확정된 것은 2,400만 원의 서명 계약이며 청구·입금·매출 인식은 별도로 미확인입니다. 고은서는 6월 25일까지 20명 권한 목록을 제공하고 초기 전환 대상은 최근 3개월 승인 견적입니다."
+        }
+      },
+      {
+        "id": "5b9527e7-4d06-5c5f-bebc-58c02724b128",
+        "submission_id": "8cfcb3c8-c5e1-511c-9847-a38822400d8e",
+        "source_activity_id": "5b9527e7-4d06-5c5f-bebc-58c02724b128",
+        "report_date": "2026-06-22",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "dccf41cc-9724-5fba-b283-5cde62b35b7b",
+        "title": "ERP 단가 연동",
+        "values": {
+          "body": "ERP 연동은 사용권·추가비용 미확정으로 보류하며 예상금액 800만 원은 계약 실적에 포함하지 않습니다."
+        }
+      },
+      {
+        "id": "5b9527e7-4d06-5c5f-bebc-58c02724b128",
+        "submission_id": "8cfcb3c8-c5e1-511c-9847-a38822400d8e",
+        "source_activity_id": "5b9527e7-4d06-5c5f-bebc-58c02724b128",
+        "report_date": "2026-06-22",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "13dd181f-e6cb-5f24-a928-000973bf8313",
+        "title": "현장 영업 교육",
+        "values": {
+          "body": "교육 방식만 두 회차로 합의됐고 날짜·300만 원 교육비 승인은 대기 중입니다. 다음 달 교육은 준비 계획이며 일정과 비용 승인은 확인 필요입니다."
+        }
+      },
+      {
+        "id": "29eaea4d-5648-5931-bf3d-3da1826dad90",
+        "submission_id": "f24225a5-f341-5aee-8358-570098bf6bc8",
+        "source_activity_id": "29eaea4d-5648-5931-bf3d-3da1826dad90",
+        "report_date": "2026-06-22",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "title": "화주 고객관리",
+        "values": {
+          "body": "CRM과 유료 시범은 보류이며 이번 달 이 회사의 신규 계약금액은 0원입니다."
+        }
+      },
+      {
+        "id": "29eaea4d-5648-5931-bf3d-3da1826dad90",
+        "submission_id": "f24225a5-f341-5aee-8358-570098bf6bc8",
+        "source_activity_id": "29eaea4d-5648-5931-bf3d-3da1826dad90",
+        "report_date": "2026-06-22",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "10a6f8f9-0362-5a51-ac53-ccd1b229fee0",
+        "title": "WMS 운송 연계",
+        "values": {
+          "body": "API 연동은 보류 유지이며 테스트 주문 재조회는 신규 실적이 아닙니다."
+        }
+      },
+      {
+        "id": "29eaea4d-5648-5931-bf3d-3da1826dad90",
+        "submission_id": "f24225a5-f341-5aee-8358-570098bf6bc8",
+        "source_activity_id": "29eaea4d-5648-5931-bf3d-3da1826dad90",
+        "report_date": "2026-06-22",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef",
+        "title": "거점 담당자 교육",
+        "values": {
+          "body": "교육 날짜·참석자와 운영인력 재검토 기한은 미정입니다."
+        }
+      },
+      {
+        "id": "c621356b-80d5-575c-8993-ca31b7e34d4e",
+        "submission_id": "2df59829-e749-58e1-bb31-dd78496d1ee1",
+        "source_activity_id": "c621356b-80d5-575c-8993-ca31b7e34d4e",
+        "report_date": "2026-06-22",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "6ca8c414-0109-5efa-b007-5d809037d282",
+        "title": "상담 통합 CRM",
+        "values": {
+          "body": "주문번호·문의유형만 쓰는 제한 시범이 조건부 허용됐고 CRM 계약은 미체결입니다. 이번 달 이 회사는 검색검증·제한시범 진전이 있으나 서명 계약금액은0원입니다."
+        }
+      },
+      {
+        "id": "c621356b-80d5-575c-8993-ca31b7e34d4e",
+        "submission_id": "2df59829-e749-58e1-bb31-dd78496d1ee1",
+        "source_activity_id": "c621356b-80d5-575c-8993-ca31b7e34d4e",
+        "report_date": "2026-06-22",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0",
+        "title": "주문·반품 연동",
+        "values": {
+          "body": "지급완료 응답1건은 확인했지만 실패·재시도의 중복지급 방지 검증은 남아 있습니다."
+        }
+      },
+      {
+        "id": "c621356b-80d5-575c-8993-ca31b7e34d4e",
+        "submission_id": "2df59829-e749-58e1-bb31-dd78496d1ee1",
+        "source_activity_id": "c621356b-80d5-575c-8993-ca31b7e34d4e",
+        "report_date": "2026-06-22",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "b7198d85-c5b1-5449-8475-44ad64cbd6a5",
+        "title": "야간 운영 지원",
+        "values": {
+          "body": "야간지원 검토 범위는 장애 접수·인계이며 상주 상담은 제외하고 비용 승인은 대기합니다."
+        }
+      }
+    ],
+    "meetings": [
+      {
+        "activity_id": "5b9527e7-4d06-5c5f-bebc-58c02724b128",
+        "common_report": {
+          "body": "다음 미팅은 권한·데이터 전환을 확인하며 이번 CRM 서명 사건을 신규 계약으로 재집계하지 않습니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "29eaea4d-5648-5931-bf3d-3da1826dad90",
+        "common_report": {
+          "body": "지점장 회신 확인은 완료됐으나 운영담당자2명 확보는 실패해 미완료입니다. 다음 미팅의 선행 조건은 운영담당자와 참여시간 확보입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "c621356b-80d5-575c-8993-ca31b7e34d4e",
+        "common_report": {
+          "body": "6월26일까지 영업 담당자가 실패·재시도·중복요청 결제 테스트 계획을 전달할 예정이며 계약결정일은 미정입니다."
+        },
+        "unassigned_report": null
+      }
+    ],
+    "activities": []
+  },
+  "attachments": []
+}

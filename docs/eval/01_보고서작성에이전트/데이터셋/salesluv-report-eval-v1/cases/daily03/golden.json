@@ -1,0 +1,172 @@
+{
+  "case_id": "daily03",
+  "report_kind": "daily",
+  "facts": [
+    {
+      "id": "daily03-f01",
+      "claim": "본사12명·점주24명 접근을 분리하며 정보시스템팀과 재무본부장 승인이 필요합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "본사12명·점주24명 접근을 분리하며 정보시스템팀과 재무본부장 승인이 필요합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f02",
+      "claim": "초기 정산연동은 확정본 조회이며 예상수수료·확정액·실제지급은 구분됩니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "초기 정산연동은 확정본 조회이며 예상수수료·확정액·실제지급은 구분됩니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f03",
+      "claim": "가상2점포의 상호접근 차단이 시범조건이며 연2,800만 원은 검토용 제안입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "가상2점포의 상호접근 차단이 시범조건이며 연2,800만 원은 검토용 제안입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f04",
+      "claim": "6월8일까지 영업 담당자가 권한표·가상2점포 접근검증 결과를 전달할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[0].common_report.body",
+          "quote": "6월8일까지 영업 담당자가 권한표·가상2점포 접근검증 결과를 전달할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f05",
+      "claim": "6개 프로젝트 중2건은 조사완료 후 고객 투자위원회 일정 대기이며 인허가 거절이 아닙니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "6개 프로젝트 중2건은 조사완료 후 고객 투자위원회 일정 대기이며 인허가 거절이 아닙니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f06",
+      "claim": "일정연계는 요청일·고객확정 여부·변경사유를 구분해야 합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "일정연계는 요청일·고객확정 여부·변경사유를 구분해야 합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f07",
+      "claim": "실도면 반입은 미허용이며 보안검토 전 가상 사업장·단순배치 예시만 사용합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "실도면 반입은 미허용이며 보안검토 전 가상 사업장·단순배치 예시만 사용합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f08",
+      "claim": "CRM18명·연3,200만 원은 검토범위이며 예산승인 전입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "CRM18명·연3,200만 원은 검토범위이며 예산승인 전입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f09",
+      "claim": "백도하는6월8일까지 프로젝트6건 진행표를 제공하고 영업 담당자는 저장·다운로드권한 문서를 전달할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "백도하는6월8일까지 프로젝트6건 진행표를 제공하고 영업 담당자는 저장·다운로드권한 문서를 전달할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f10",
+      "claim": "프로듀서9명의 계약범위·수정회차·제작인계 관리가 목적입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "프로듀서9명의 계약범위·수정회차·제작인계 관리가 목적입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f11",
+      "claim": "기본수정2회 포함·3회차부터 별도견적이며 요청과 추가비 승인은 다릅니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[6].values.body",
+          "quote": "기본수정2회 포함·3회차부터 별도견적이며 요청과 추가비 승인은 다릅니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f12",
+      "claim": "연2,000만 원 제안을 검토하며 월단위 계약 대안과 대표 비용승인이 필요합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "연2,000만 원 제안을 검토하며 월단위 계약 대안과 대표 비용승인이 필요합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily03-f13",
+      "claim": "진해온은6월8일까지 가상프로젝트3건의 촬영일수·산출물·수정회차를 제공할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[2].common_report.body",
+          "quote": "진해온은6월8일까지 가상프로젝트3건의 촬영일수·산출물·수정회차를 제공할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "daily03-f01",
+    "daily03-f02",
+    "daily03-f03",
+    "daily03-f04",
+    "daily03-f05",
+    "daily03-f06",
+    "daily03-f07",
+    "daily03-f08",
+    "daily03-f09",
+    "daily03-f10",
+    "daily03-f11",
+    "daily03-f12",
+    "daily03-f13"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "오늘 활동→거래처별 결과→미완료·문제→다음 업무. 원문 반복과 중복 집계를 피합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

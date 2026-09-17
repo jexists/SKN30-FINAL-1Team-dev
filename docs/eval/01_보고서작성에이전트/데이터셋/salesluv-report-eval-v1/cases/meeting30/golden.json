@@ -1,0 +1,164 @@
+{
+  "case_id": "meeting30",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting30-f01",
+      "claim": "주문번호·문의유형만 쓰는 제한 시범이 조건부 허용됐고 CRM 계약은 미체결입니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting30.txt",
+          "start": 265,
+          "end": 353,
+          "quote": "허용된 것은 주문번호와 문의유형만 사용하는 제한 시범입니다. 주소와 결제정보는 제외하고, 관리자 계정은 두 명으로 제한하며 다운로드 기록도 남기는 조건입니다.",
+          "segment_ids": [
+            "S0007",
+            "S0008"
+          ]
+        },
+        {
+          "path": "transcripts/meeting30.txt",
+          "start": 472,
+          "end": 533,
+          "quote": "현재 허용은 보안 조건이 붙은 제한 시범이며, 전사 운영이나 상담 통합 CRM 계약으로 확대된 것은 아닙니다.",
+          "segment_ids": [
+            "S0013"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting30-f01"
+    },
+    {
+      "id": "meeting30-f02",
+      "claim": "지급완료 응답1건은 확인했지만 실패·재시도의 중복지급 방지 검증은 남아 있습니다.",
+      "sales_deal_id": "deal03-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting30.txt",
+          "start": 976,
+          "end": 1077,
+          "quote": "주문·반품 연동에서는 결제사 계정이 발급됐고 지급완료 응답 한 건을 확인했습니다. 그렇다고 전체 환불 지급이 검증된 것은 아니며, 환불 지급 확정은 결제 시스템에서 확인해야 합니다.",
+          "segment_ids": [
+            "S0024",
+            "S0025"
+          ]
+        },
+        {
+          "path": "transcripts/meeting30.txt",
+          "start": 1195,
+          "end": 1255,
+          "quote": "실패 후 재시도하거나 중복 요청이 들어왔을 때 같은 지급이 두 번 나가지 않는지는 아직 시험하지 못했습니다.",
+          "segment_ids": [
+            "S0028"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting30-f02"
+    },
+    {
+      "id": "meeting30-f03",
+      "claim": "야간지원 검토 범위는 장애 접수·인계이며 상주 상담은 제외하고 비용 승인은 대기합니다.",
+      "sales_deal_id": "deal03-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting30.txt",
+          "start": 2021,
+          "end": 2087,
+          "quote": "긴급도 판단 기준을 문서로 검토하기 전까지는 장애 접수·인계 범위를 넘기지 않고, 비용 승인은 대기 상태로 두겠습니다.",
+          "segment_ids": [
+            "S0045"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting30-f03"
+    },
+    {
+      "id": "meeting30-f04",
+      "claim": "이번 달 이 회사는 검색검증·제한시범 진전이 있으나 서명 계약금액은0원입니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting30.txt",
+          "start": 698,
+          "end": 785,
+          "quote": "비식별 열다섯 건 검색 성공과 제한 시범 허용은 이번 달 진행 사항입니다. 운영 성과나 수금은 확인되지 않았고, 서명 계약이 없으므로 계약금액은 0원입니다.",
+          "segment_ids": [
+            "S0017",
+            "S0018"
+          ]
+        },
+        {
+          "path": "transcripts/meeting30.txt",
+          "start": 2297,
+          "end": 2397,
+          "quote": "CRM의 비식별 열다섯 건 검색 성공과 제한 시범 허용은 이번 달 진행 사항이지만, 서명 계약과 수금이 확인된 것은 아닙니다. 계약금액은 0원이고 운영 성과도 아직 확인 전입니다.",
+          "segment_ids": [
+            "S0050",
+            "S0051"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting30-f04"
+    },
+    {
+      "id": "meeting30-f05",
+      "claim": "6월26일까지 영업 담당자가 실패·재시도·중복요청 결제 테스트 계획을 전달할 예정이며 계약결정일은 미정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting30.txt",
+          "start": 1448,
+          "end": 1559,
+          "quote": "실패 후 재시도와 중복 요청을 포함한 결제 테스트 계획을 6월 26일까지 전달하겠습니다. 이는 계획 전달일이며 실제 결제 시험 완료일은 아닙니다. 계약 의사결정일은 시험 결과를 본 뒤 판단하겠습니다.",
+          "segment_ids": [
+            "S0033",
+            "S0034",
+            "S0035"
+          ]
+        },
+        {
+          "path": "transcripts/meeting30.txt",
+          "start": 1628,
+          "end": 1662,
+          "quote": "계약 의사결정일은 결과를 본 다음이라 지금 정할 수 없습니다.",
+          "segment_ids": [
+            "S0038"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting30-f05"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting30-f01",
+    "meeting30-f02",
+    "meeting30-f03",
+    "meeting30-f04",
+    "meeting30-f05"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

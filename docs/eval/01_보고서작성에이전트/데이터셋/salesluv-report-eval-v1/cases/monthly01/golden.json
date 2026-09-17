@@ -1,0 +1,138 @@
+{
+  "case_id": "monthly01",
+  "report_kind": "monthly",
+  "facts": [
+    {
+      "id": "monthly01-f01",
+      "claim": "6월 22일 CRM 20명·부가세 별도 연 2,400만 원 계약이 양사 서명 완료됐으며 서비스 개시는 7월 1일입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "6월 22일 CRM 20명·부가세 별도 연 2,400만 원 계약이 양사 서명 완료됐으며 서비스 개시는 7월 1일입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "monthly01-f02",
+      "claim": "지점장 회신 확인은 완료됐으나 운영담당자2명 확보는 실패해 미완료입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "지점장 회신 확인은 완료됐으나 운영담당자2명 확보는 실패해 미완료입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "monthly01-f03",
+      "claim": "주문번호·문의유형만 쓰는 제한 시범이 조건부 허용됐고 CRM 계약은 미체결입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "주문번호·문의유형만 쓰는 제한 시범이 조건부 허용됐고 CRM 계약은 미체결입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "monthly01-f04",
+      "claim": "10명 운영계정 접근검증이6월22일 완료됐으며 지난주 계약의 이행이지 신규계약이 아닙니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "10명 운영계정 접근검증이6월22일 완료됐으며 지난주 계약의 이행이지 신규계약이 아닙니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "monthly01-f05",
+      "claim": "안내자료 수신 후3명 의견을 받았고1명은 승인상태 글자 가독성 개선을 요청했습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "안내자료 수신 후3명 의견을 받았고1명은 승인상태 글자 가독성 개선을 요청했습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "monthly01-f06",
+      "claim": "6월24일 CRM1,500만 원 계약 서명 완료,750만 원씩7월6일·10월6일 분납이며 입금은 미확인입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "6월24일 CRM1,500만 원 계약 서명 완료,750만 원씩7월6일·10월6일 분납이며 입금은 미확인입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "monthly01-f07",
+      "claim": "수정제안은 수신됐으나 본사·점주 책임정책 미정으로 구매결정 보류이며 계약 미체결입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "수정제안은 수신됐으나 본사·점주 책임정책 미정으로 구매결정 보류이며 계약 미체결입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "monthly01-f08",
+      "claim": "6월22일 이름·단계·일정의 제한시범만 허용됐고 실도면·계약서는 제외됩니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "6월22일 이름·단계·일정의 제한시범만 허용됐고 실도면·계약서는 제외됩니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "monthly01-f09",
+      "claim": "6월22일 CRM 시연계정 비활성화가 확인됐고 연간제안 거절상태를 유지합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "6월22일 CRM 시연계정 비활성화가 확인됐고 연간제안 거절상태를 유지합니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "monthly01-f01",
+    "monthly01-f02",
+    "monthly01-f03",
+    "monthly01-f04",
+    "monthly01-f05",
+    "monthly01-f06",
+    "monthly01-f07",
+    "monthly01-f08",
+    "monthly01-f09"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [
+    {
+      "field": "week2_target",
+      "expected": "해당 주 목표는 미제공이며 월 목표를 임의 합산하지 않습니다."
+    }
+  ],
+  "allowed_derivations": [
+    {
+      "operation": "주별 당기 미팅9건씩 합산, 누적9/18/27/36은 합산하지 않음; 신규계약 사건별 합산. 6/29~30 자료는 미제공",
+      "expected": {
+        "meeting_count": 36,
+        "new_contract_count": 3,
+        "signed_amount_krw": 57000000
+      }
+    }
+  ],
+  "report_expectations": "성과→원인→문제→개선안→다음 달 계획. 우선순위와 지원·승인 필요사항을 제시합니다. 개선안은 유일 문장 정답이 아니며 보류 원인·필요 승인과 연결되는 제안을 인정합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

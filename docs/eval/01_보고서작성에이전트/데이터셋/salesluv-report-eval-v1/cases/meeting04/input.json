@@ -1,0 +1,1344 @@
+{
+  "transcript": "영업 담당자: 오늘은 수강 상담이 실제 등록 인원으로 어떻게 이어지는지, 그리고 결제 상태를 어떤 기준으로 조회할지 차례로 확인하겠습니다. 특히 상담을 예약한 사람과 수강을 신청한 사람, 결제가 확인된 사람을 한 숫자로 보지 않는 방식이 핵심으로 이해했습니다.\n문시우: 네. 지금은 직무 과정 문의가 여러 갈래로 들어오다 보니, 한 사람이 두 과정을 물어보는 경우가 있습니다. 그런데 상담 예약만 해도 등록한 사람처럼 집계되는 일이 있어 실제 수강 인원보다 내부 숫자가 커졌습니다.\n영업 담당자: 그렇다면 CRM에서는 상담예약, 수강신청, 결제확인을 서로 다른 상태로 두는 방향이 필요하겠습니다. 같은 사람이 여러 과정을 문의하더라도 사람 수를 세는 기준에서는 중복으로 잡히지 않게 하고, 과정별 문의 내용은 별도로 확인할 수 있어야 한다는 뜻인가요?\n문시우: 맞습니다. 과정 문의 자체는 여러 건으로 남아도 괜찮지만, 등록인원을 셀 때 같은 사람을 두 번 세면 안 됩니다. 상담을 잡았다는 이유만으로 수강생으로 포함해서도 안 되고요.\n영업 담당자: 수강신청까지 갔더라도 결제가 확인되지 않으면 결제완료 인원으로 보지 않고, 상담예약과 신청 상태도 분리해 보겠습니다. 취소된 신청은 사라지게 하기보다 별도 상태로 남기는 방식까지 포함하면 될까요?\n문시우: 네. 취소된 신청도 흐름을 확인해야 해서 별도 상태로 남기고 싶습니다. 다만 상담예약, 신청, 결제확인을 한 화면에서 모두 같은 등록 숫자로 합치는 방식은 원하지 않습니다.\n영업 담당자: 사용 범위도 확인하겠습니다. CRM 계정은 교육생에게 제공하는 것이 아니라 내부 상담사들이 사용하는 구조로 검토 중이신가요?\n문시우: 그렇습니다. 내부 상담사 열 명이 사용합니다. 교육생은 지금처럼 기존 신청서를 쓰고, 교육생에게 CRM 계정을 만들어 주지는 않을 예정입니다.\n영업 담당자: 그러면 상담 CRM의 사용자는 내부 상담사 열 명으로 잡고, 교육생용 계정이나 신청서 변경은 범위에 넣지 않겠습니다. 내부 예산으로 검토하고 계신 금액도 확인해도 될까요?\n문시우: 내부 예산 검토액은 연 1,800만 원이고 부가세는 별도입니다. 다만 이 금액은 승인된 예산이 아니라 검토 중인 금액입니다.\n영업 담당자: 연 1,800만 원은 부가세 별도의 승인 전 검토액입니다. 운영본부장에게 도입안을 올릴 계획이지만, 아직 승인이나 계약 서명은 없습니다.\n문시우: 네, 아직 운영본부장 승인 전입니다. 계약이 체결됐다고 전제하거나, 이미 도입이 확정된 것처럼 설명하면 곤란합니다.\n영업 담당자: 알겠습니다. 현재는 내부 상담사 열 명을 기준으로 CRM 범위를 검토하고, 연 1,800만 원은 부가세 별도의 승인 전 검토액으로 구분하겠습니다. 교육생 계정은 포함하지 않겠습니다.\n문시우: 그 기준이면 됩니다. 상담 누락을 확인할 때는 단순히 상담 건수만 보지 말고, 누가 맡았는지와 언제 연락하기로 했는지를 남길 수 있어야 합니다.\n영업 담당자: 테스트 자료는 상담 열두 건으로 확인하고, 각 건에 담당자와 약속한 연락일이 모두 남는지를 보겠습니다. 열두 건에서 누락이 영 건이면 통과 기준으로 삼는 것이 맞습니까?\n문시우: 네. 담당자와 약속한 연락일이 빠진 건이 영 건이어야 합니다. 여기서 중요한 건 숫자를 좋게 보이게 만드는 게 아니라 실제로 정해진 값이 남는지 확인하는 것입니다.\n영업 담당자: 연락일이 아직 정해지지 않은 상담이라면 어떻게 처리할까요? 빈칸을 자동으로 특정 날짜로 채우는 방식도 기술적으로는 가능할 수 있지만, 그건 누락이 없는 것처럼 보이게 할 수 있습니다.\n문시우: 미정인 연락일은 임의 날짜로 채우지 말아 주세요. 정해지지 않은 값은 미정으로 남아야 하고, 그 상태를 숨겨서 누락이 없는 것처럼 보이게 하면 기준을 통과한 것으로 볼 수 없습니다.\n영업 담당자: 그럼 테스트에서는 실제로 약속된 연락일만 기록하고, 미정인 값은 임의로 만들지 않겠습니다. 이 열두 건의 표본으로 매출이 얼마나 늘었는지를 측정하는 것은 기준에 포함하지 않는 것으로 이해했습니다.\n문시우: 맞습니다. 이번 확인은 담당자와 약속한 연락일 누락 여부만 보려는 것입니다. 이 표본에서 매출 증가를 계산하거나 성과를 추정하려는 목적은 아닙니다.\n영업 담당자: 이제 결제 연동 쪽을 보겠습니다. 결제예정 안내가 표시됐다는 이유만으로 결제완료로 바꾸는 것이 아니라, 결제사의 성공 응답이나 회계 담당자의 입금 확인이 있어야 완료로 조회되도록 원하시는 거죠?\n문시우: 네. 입금 예정이라는 안내만으로는 부족합니다. 결제사에서 성공 응답이 오거나 회계 담당자가 입금을 확인해야 결제완료로 볼 수 있습니다.\n영업 담당자: 그렇다면 조회 화면에서는 결제예정과 결제완료를 분리하겠습니다. 예정 상태에 머물러 있는 건은 결제완료 목록에 섞이지 않고, 확인 근거가 생긴 건만 완료로 볼 수 있게 하는 방향입니다.\n문시우: 그렇게 해 주세요. 결제가 아직 확인되지 않았는데 수강등록 상태가 완료로 바뀌면 상담 집계뿐 아니라 등록 집계도 다시 틀어집니다.\n영업 담당자: 취소도 같은 방식으로 나누겠습니다. 취소 요청이 접수된 상태와 실제로 환불된 상태를 각각 조회하고, 취소접수만으로 실제환불로 표시하지 않겠습니다.\n문시우: 맞습니다. 취소 요청을 넣었다고 환불이 끝난 것은 아닙니다. 취소접수와 실제환불을 따로 확인할 수 있어야 합니다.\n영업 담당자: 이번 범위는 기존 결제시스템을 교체하는 프로젝트가 아니라, 확인된 결제와 취소 상태를 CRM에서 조회하는 연동으로 이해하겠습니다. 운영 환경에 연결하기 전에는 테스트 과정에서 먼저 확인하고요.\n문시우: 네. 기존 결제시스템을 바꾸려는 게 아닙니다. 이미 확인된 상태를 CRM에서 볼 수 있게 하려는 것이고, 운영 환경에 연결하기 전에 테스트로 먼저 확인하고 싶습니다.\n영업 담당자: 테스트에서도 결제예정, 결제완료, 취소접수, 실제환불은 각각 조회되어야 합니다. 다만 어떤 응답을 어느 화면에 표시할지는 아직 정해지지 않았고, 테스트 자료를 보고 확인해야 합니다.\n문시우: 네, 자료를 보고 확인해야 하는 부분은 아직 정해지지 않은 상태입니다.\n영업 담당자: 상담 테스트 자료는 어떤 방식으로 전달하실 예정인가요? 실제 교육생 연락처를 포함할 필요는 없다는 점은 확인했습니다.\n문시우: 제가 6월 5일까지 비식별 상담 열두 건을 보내겠습니다. 실제 교육생 연락처는 넣지 않겠습니다. 상담 사례를 확인할 수 있을 정도로만 자료를 준비하겠습니다.\n영업 담당자: 비식별 상담 열두 건을 6월 5일까지 제공하시는 것으로 이해하겠습니다. 내부 상담사 열 명을 기준으로 보는 제안 범위와 결제 상태를 조회하는 범위는 서로 다른 범위입니다.\n문시우: 네. 특히 내부 사용자 열 명 기준의 상담 CRM과 결제조회 범위를 한 항목처럼 설명하지 말아 주세요. 제가 자료를 보내면 두 범위를 나눠서 확인할 수 있어야 합니다.\n영업 담당자: 자료를 받았을 때는 비식별 상담 건수가 열두 건인지 먼저 확인하고, 상담 자료가 정한 방식으로 전달됐는지도 보겠습니다. 자료 전달이 끝났다고 보는 기준도 그 두 조건이 맞습니까?\n문시우: 네. 두 파일이 수신되고 표본 건수가 맞으면 자료 전달 업무는 완료로 보겠습니다. 다만 그 자체가 CRM 도입 승인이나 계약 체결을 뜻하는 것은 아닙니다.\n영업 담당자: 자료 전달 완료와 도입 승인·계약 서명은 별개입니다. 현재 승인이나 계약 서명은 없고, 상담 열두 건을 기준으로 누락 여부를 확인하는 단계입니다.\n문시우: 좋습니다. 오늘 정리한 핵심은 상담예약·수강신청·결제확인을 나누고, 같은 사람의 복수과정 문의를 등록인원으로 중복 집계하지 않는 것, 그리고 결제와 환불의 예정·완료 상태를 구분하는 것입니다.\n영업 담당자: 네. 상담 CRM은 내부 상담사 열 명 사용을 기준으로 하고 교육생 계정은 포함하지 않습니다. 연 1,800만 원은 부가세 별도의 승인 전 검토액이며, 상담 열두 건의 기준은 담당자와 약속한 연락일 누락 영 건이고 미정값은 임의로 채우지 않습니다.\n문시우: 제가 6월 5일까지 비식별 상담 열두 건을 보내고, 자료가 도착한 뒤 정해진 건수와 상태 구분을 확인하겠습니다. 그 전까지는 승인이나 계약이 없는 상태이고, 결제 연동은 운영 환경에 연결하기 전 테스트 단계입니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "9ed1889bdba885ba849580a42c9423fa1338b8a7d8e69005be0f7bd89da1131b",
+    "selected_deal_ids": [
+      "e87a886e-31a5-5620-860a-527d02055a31",
+      "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 77,
+          "text": "영업 담당자: 오늘은 수강 상담이 실제 등록 인원으로 어떻게 이어지는지, 그리고 결제 상태를 어떤 기준으로 조회할지 차례로 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 78,
+          "end": 145,
+          "text": "특히 상담을 예약한 사람과 수강을 신청한 사람, 결제가 확인된 사람을 한 숫자로 보지 않는 방식이 핵심으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 146,
+          "end": 153,
+          "text": "문시우: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 154,
+          "end": 210,
+          "text": "지금은 직무 과정 문의가 여러 갈래로 들어오다 보니, 한 사람이 두 과정을 물어보는 경우가 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 211,
+          "end": 269,
+          "text": "그런데 상담 예약만 해도 등록한 사람처럼 집계되는 일이 있어 실제 수강 인원보다 내부 숫자가 커졌습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 270,
+          "end": 333,
+          "text": "영업 담당자: 그렇다면 CRM에서는 상담예약, 수강신청, 결제확인을 서로 다른 상태로 두는 방향이 필요하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 334,
+          "end": 420,
+          "text": "같은 사람이 여러 과정을 문의하더라도 사람 수를 세는 기준에서는 중복으로 잡히지 않게 하고, 과정별 문의 내용은 별도로 확인할 수 있어야 한다는 뜻인가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 421,
+          "end": 431,
+          "text": "문시우: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 432,
+          "end": 489,
+          "text": "과정 문의 자체는 여러 건으로 남아도 괜찮지만, 등록인원을 셀 때 같은 사람을 두 번 세면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 490,
+          "end": 523,
+          "text": "상담을 잡았다는 이유만으로 수강생으로 포함해서도 안 되고요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 524,
+          "end": 597,
+          "text": "영업 담당자: 수강신청까지 갔더라도 결제가 확인되지 않으면 결제완료 인원으로 보지 않고, 상담예약과 신청 상태도 분리해 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 598,
+          "end": 641,
+          "text": "취소된 신청은 사라지게 하기보다 별도 상태로 남기는 방식까지 포함하면 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 642,
+          "end": 649,
+          "text": "문시우: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 650,
+          "end": 686,
+          "text": "취소된 신청도 흐름을 확인해야 해서 별도 상태로 남기고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 687,
+          "end": 743,
+          "text": "다만 상담예약, 신청, 결제확인을 한 화면에서 모두 같은 등록 숫자로 합치는 방식은 원하지 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 744,
+          "end": 767,
+          "text": "영업 담당자: 사용 범위도 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 768,
+          "end": 821,
+          "text": "CRM 계정은 교육생에게 제공하는 것이 아니라 내부 상담사들이 사용하는 구조로 검토 중이신가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 822,
+          "end": 833,
+          "text": "문시우: 그렇습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 834,
+          "end": 852,
+          "text": "내부 상담사 열 명이 사용합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 853,
+          "end": 906,
+          "text": "교육생은 지금처럼 기존 신청서를 쓰고, 교육생에게 CRM 계정을 만들어 주지는 않을 예정입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 907,
+          "end": 980,
+          "text": "영업 담당자: 그러면 상담 CRM의 사용자는 내부 상담사 열 명으로 잡고, 교육생용 계정이나 신청서 변경은 범위에 넣지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 981,
+          "end": 1010,
+          "text": "내부 예산으로 검토하고 계신 금액도 확인해도 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 1011,
+          "end": 1051,
+          "text": "문시우: 내부 예산 검토액은 연 1,800만 원이고 부가세는 별도입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 1052,
+          "end": 1085,
+          "text": "다만 이 금액은 승인된 예산이 아니라 검토 중인 금액입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1086,
+          "end": 1126,
+          "text": "영업 담당자: 연 1,800만 원은 부가세 별도의 승인 전 검토액입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1127,
+          "end": 1170,
+          "text": "운영본부장에게 도입안을 올릴 계획이지만, 아직 승인이나 계약 서명은 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1171,
+          "end": 1196,
+          "text": "문시우: 네, 아직 운영본부장 승인 전입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1197,
+          "end": 1240,
+          "text": "계약이 체결됐다고 전제하거나, 이미 도입이 확정된 것처럼 설명하면 곤란합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1241,
+          "end": 1255,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1256,
+          "end": 1330,
+          "text": "현재는 내부 상담사 열 명을 기준으로 CRM 범위를 검토하고, 연 1,800만 원은 부가세 별도의 승인 전 검토액으로 구분하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1331,
+          "end": 1350,
+          "text": "교육생 계정은 포함하지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1351,
+          "end": 1367,
+          "text": "문시우: 그 기준이면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1368,
+          "end": 1436,
+          "text": "상담 누락을 확인할 때는 단순히 상담 건수만 보지 말고, 누가 맡았는지와 언제 연락하기로 했는지를 남길 수 있어야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1437,
+          "end": 1502,
+          "text": "영업 담당자: 테스트 자료는 상담 열두 건으로 확인하고, 각 건에 담당자와 약속한 연락일이 모두 남는지를 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1503,
+          "end": 1539,
+          "text": "열두 건에서 누락이 영 건이면 통과 기준으로 삼는 것이 맞습니까?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1540,
+          "end": 1547,
+          "text": "문시우: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1548,
+          "end": 1579,
+          "text": "담당자와 약속한 연락일이 빠진 건이 영 건이어야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1580,
+          "end": 1636,
+          "text": "여기서 중요한 건 숫자를 좋게 보이게 만드는 게 아니라 실제로 정해진 값이 남는지 확인하는 것입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1637,
+          "end": 1677,
+          "text": "영업 담당자: 연락일이 아직 정해지지 않은 상담이라면 어떻게 처리할까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1678,
+          "end": 1747,
+          "text": "빈칸을 자동으로 특정 날짜로 채우는 방식도 기술적으로는 가능할 수 있지만, 그건 누락이 없는 것처럼 보이게 할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1748,
+          "end": 1780,
+          "text": "문시우: 미정인 연락일은 임의 날짜로 채우지 말아 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1781,
+          "end": 1854,
+          "text": "정해지지 않은 값은 미정으로 남아야 하고, 그 상태를 숨겨서 누락이 없는 것처럼 보이게 하면 기준을 통과한 것으로 볼 수 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 1855,
+          "end": 1913,
+          "text": "영업 담당자: 그럼 테스트에서는 실제로 약속된 연락일만 기록하고, 미정인 값은 임의로 만들지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 1914,
+          "end": 1972,
+          "text": "이 열두 건의 표본으로 매출이 얼마나 늘었는지를 측정하는 것은 기준에 포함하지 않는 것으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 1973,
+          "end": 1983,
+          "text": "문시우: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 1984,
+          "end": 2020,
+          "text": "이번 확인은 담당자와 약속한 연락일 누락 여부만 보려는 것입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 2021,
+          "end": 2060,
+          "text": "이 표본에서 매출 증가를 계산하거나 성과를 추정하려는 목적은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 2061,
+          "end": 2087,
+          "text": "영업 담당자: 이제 결제 연동 쪽을 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 2088,
+          "end": 2177,
+          "text": "결제예정 안내가 표시됐다는 이유만으로 결제완료로 바꾸는 것이 아니라, 결제사의 성공 응답이나 회계 담당자의 입금 확인이 있어야 완료로 조회되도록 원하시는 거죠?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0050",
+          "start": 2178,
+          "end": 2185,
+          "text": "문시우: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0051",
+          "start": 2186,
+          "end": 2208,
+          "text": "입금 예정이라는 안내만으로는 부족합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0052",
+          "start": 2209,
+          "end": 2258,
+          "text": "결제사에서 성공 응답이 오거나 회계 담당자가 입금을 확인해야 결제완료로 볼 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0053",
+          "start": 2259,
+          "end": 2301,
+          "text": "영업 담당자: 그렇다면 조회 화면에서는 결제예정과 결제완료를 분리하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0054",
+          "start": 2302,
+          "end": 2369,
+          "text": "예정 상태에 머물러 있는 건은 결제완료 목록에 섞이지 않고, 확인 근거가 생긴 건만 완료로 볼 수 있게 하는 방향입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0055",
+          "start": 2370,
+          "end": 2385,
+          "text": "문시우: 그렇게 해 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0056",
+          "start": 2386,
+          "end": 2447,
+          "text": "결제가 아직 확인되지 않았는데 수강등록 상태가 완료로 바뀌면 상담 집계뿐 아니라 등록 집계도 다시 틀어집니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0057",
+          "start": 2448,
+          "end": 2475,
+          "text": "영업 담당자: 취소도 같은 방식으로 나누겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0058",
+          "start": 2476,
+          "end": 2537,
+          "text": "취소 요청이 접수된 상태와 실제로 환불된 상태를 각각 조회하고, 취소접수만으로 실제환불로 표시하지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0059",
+          "start": 2538,
+          "end": 2548,
+          "text": "문시우: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0060",
+          "start": 2549,
+          "end": 2576,
+          "text": "취소 요청을 넣었다고 환불이 끝난 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0061",
+          "start": 2577,
+          "end": 2606,
+          "text": "취소접수와 실제환불을 따로 확인할 수 있어야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0062",
+          "start": 2607,
+          "end": 2687,
+          "text": "영업 담당자: 이번 범위는 기존 결제시스템을 교체하는 프로젝트가 아니라, 확인된 결제와 취소 상태를 CRM에서 조회하는 연동으로 이해하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0063",
+          "start": 2688,
+          "end": 2722,
+          "text": "운영 환경에 연결하기 전에는 테스트 과정에서 먼저 확인하고요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0064",
+          "start": 2723,
+          "end": 2730,
+          "text": "문시우: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0065",
+          "start": 2731,
+          "end": 2753,
+          "text": "기존 결제시스템을 바꾸려는 게 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0066",
+          "start": 2754,
+          "end": 2820,
+          "text": "이미 확인된 상태를 CRM에서 볼 수 있게 하려는 것이고, 운영 환경에 연결하기 전에 테스트로 먼저 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0067",
+          "start": 2821,
+          "end": 2873,
+          "text": "영업 담당자: 테스트에서도 결제예정, 결제완료, 취소접수, 실제환불은 각각 조회되어야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0068",
+          "start": 2874,
+          "end": 2930,
+          "text": "다만 어떤 응답을 어느 화면에 표시할지는 아직 정해지지 않았고, 테스트 자료를 보고 확인해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0069",
+          "start": 2931,
+          "end": 2975,
+          "text": "문시우: 네, 자료를 보고 확인해야 하는 부분은 아직 정해지지 않은 상태입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0070",
+          "start": 2976,
+          "end": 3014,
+          "text": "영업 담당자: 상담 테스트 자료는 어떤 방식으로 전달하실 예정인가요?"
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0071",
+          "start": 3015,
+          "end": 3049,
+          "text": "실제 교육생 연락처를 포함할 필요는 없다는 점은 확인했습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0072",
+          "start": 3050,
+          "end": 3086,
+          "text": "문시우: 제가 6월 5일까지 비식별 상담 열두 건을 보내겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0073",
+          "start": 3087,
+          "end": 3108,
+          "text": "실제 교육생 연락처는 넣지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0074",
+          "start": 3109,
+          "end": 3142,
+          "text": "상담 사례를 확인할 수 있을 정도로만 자료를 준비하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0075",
+          "start": 3143,
+          "end": 3190,
+          "text": "영업 담당자: 비식별 상담 열두 건을 6월 5일까지 제공하시는 것으로 이해하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0076",
+          "start": 3191,
+          "end": 3246,
+          "text": "내부 상담사 열 명을 기준으로 보는 제안 범위와 결제 상태를 조회하는 범위는 서로 다른 범위입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0077",
+          "start": 3247,
+          "end": 3254,
+          "text": "문시우: 네."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0078",
+          "start": 3255,
+          "end": 3309,
+          "text": "특히 내부 사용자 열 명 기준의 상담 CRM과 결제조회 범위를 한 항목처럼 설명하지 말아 주세요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0079",
+          "start": 3310,
+          "end": 3345,
+          "text": "제가 자료를 보내면 두 범위를 나눠서 확인할 수 있어야 합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0080",
+          "start": 3346,
+          "end": 3420,
+          "text": "영업 담당자: 자료를 받았을 때는 비식별 상담 건수가 열두 건인지 먼저 확인하고, 상담 자료가 정한 방식으로 전달됐는지도 보겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0081",
+          "start": 3421,
+          "end": 3453,
+          "text": "자료 전달이 끝났다고 보는 기준도 그 두 조건이 맞습니까?"
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0082",
+          "start": 3454,
+          "end": 3461,
+          "text": "문시우: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0083",
+          "start": 3462,
+          "end": 3504,
+          "text": "두 파일이 수신되고 표본 건수가 맞으면 자료 전달 업무는 완료로 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0084",
+          "start": 3505,
+          "end": 3545,
+          "text": "다만 그 자체가 CRM 도입 승인이나 계약 체결을 뜻하는 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0085",
+          "start": 3546,
+          "end": 3583,
+          "text": "영업 담당자: 자료 전달 완료와 도입 승인·계약 서명은 별개입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0086",
+          "start": 3584,
+          "end": 3635,
+          "text": "현재 승인이나 계약 서명은 없고, 상담 열두 건을 기준으로 누락 여부를 확인하는 단계입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0087",
+          "start": 3636,
+          "end": 3646,
+          "text": "문시우: 좋습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31",
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0088",
+          "start": 3647,
+          "end": 3748,
+          "text": "오늘 정리한 핵심은 상담예약·수강신청·결제확인을 나누고, 같은 사람의 복수과정 문의를 등록인원으로 중복 집계하지 않는 것, 그리고 결제와 환불의 예정·완료 상태를 구분하는 것입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31",
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0089",
+          "start": 3749,
+          "end": 3759,
+          "text": "영업 담당자: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0090",
+          "start": 3760,
+          "end": 3809,
+          "text": "상담 CRM은 내부 상담사 열 명 사용을 기준으로 하고 교육생 계정은 포함하지 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0091",
+          "start": 3810,
+          "end": 3895,
+          "text": "연 1,800만 원은 부가세 별도의 승인 전 검토액이며, 상담 열두 건의 기준은 담당자와 약속한 연락일 누락 영 건이고 미정값은 임의로 채우지 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0092",
+          "start": 3896,
+          "end": 3963,
+          "text": "문시우: 제가 6월 5일까지 비식별 상담 열두 건을 보내고, 자료가 도착한 뒤 정해진 건수와 상태 구분을 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31",
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0093",
+          "start": 3964,
+          "end": 4020,
+          "text": "그 전까지는 승인이나 계약이 없는 상태이고, 결제 연동은 운영 환경에 연결하기 전 테스트 단계입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31",
+            "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-03T09:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "2829fd87-3860-52b0-84a2-60380f2b3ed6",
+      "name": "다온교육(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "bac5564b-2c71-5a76-924f-87fa5a3eb5d2",
+      "name": "문시우(가상)"
+    },
+    "activity": {
+      "id": "a0895450-2056-5b09-9139-8327586846f2",
+      "starts_at": "2026-06-03T09:00:00+09:00",
+      "title": "수강 상담 누락과 등록 집계 기준"
+    },
+    "deals": [
+      {
+        "id": "e87a886e-31a5-5620-860a-527d02055a31",
+        "company_id": "company04",
+        "contact_id": "contact04",
+        "title": "수강 상담 CRM",
+        "description": "기업·개인 수강 상담을 과정 및 등록 상태와 연결하는 CRM. 실제 결제완료와 상담예약을 분리.",
+        "deal_amount": 18000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "e87a886e-31a5-5620-860a-527d02055a31",
+        "observed_state": "도입 검토; 계약 없음"
+      },
+      {
+        "id": "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5",
+        "company_id": "company04",
+        "contact_id": "contact04",
+        "title": "수강료 결제 연동",
+        "description": "결제·취소 응답을 수강등록 상태와 연결하는 서비스. 교육생 개인정보는 최소 항목만 처리.",
+        "deal_amount": 4500000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5",
+        "observed_state": "도입 검토; 계약 없음"
+      }
+    ],
+    "previous_reports": [],
+    "trade_history": []
+  },
+  "attachments": []
+}

@@ -1,0 +1,151 @@
+{
+  "case_id": "weekly02",
+  "report_kind": "weekly",
+  "facts": [
+    {
+      "id": "weekly02-f01",
+      "claim": "이번 주 서명계약 목표는 제공되지 않았습니다.",
+      "source_refs": [
+        {
+          "path": "guidance",
+          "quote": "이번 주 서명계약 목표는 제공되지 않았습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly02-f02",
+      "claim": "6월 4일 수정 제안서 발송과 고객 수신이 확인되어 해당 후속 업무가 완료됐습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "6월 4일 수정 제안서 발송과 고객 수신이 확인되어 해당 후속 업무가 완료됐습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly02-f03",
+      "claim": "40명 전체 도입은 미승인이고 한 거점 12명 유료 시범으로 견적 재요청합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "40명 전체 도입은 미승인이고 한 거점 12명 유료 시범으로 견적 재요청합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly02-f04",
+      "claim": "보안 검토는 접수됐으나 다운로드·관리자 접근기록 보관기간 보완이 필요해 승인 전입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "보안 검토는 접수됐으나 다운로드·관리자 접근기록 보관기간 보완이 필요해 승인 전입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly02-f05",
+      "claim": "12건 시범에서 제공된 담당자·연락일 누락은0건이며 연락일 미정2건은 미정으로 보존했습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "12건 시범에서 제공된 담당자·연락일 누락은0건이며 연락일 미정2건은 미정으로 보존했습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly02-f06",
+      "claim": "단가표2버전을 수신했고 적용일 이전 주문 가격은 유지하며 변경품목은 승인 검토합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "단가표2버전을 수신했고 적용일 이전 주문 가격은 유지하며 변경품목은 승인 검토합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly02-f07",
+      "claim": "서비스6건 사유는 조회됐으나 담당기사 변경1건의 표시 수정이 필요합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "서비스6건 사유는 조회됐으나 담당기사 변경1건의 표시 수정이 필요합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly02-f08",
+      "claim": "목록 접근차단은 확인됐으나 공유링크가 다른점포 계정에서 열리는 문제가 발견됐습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "목록 접근차단은 확인됐으나 공유링크가 다른점포 계정에서 열리는 문제가 발견됐습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly02-f09",
+      "claim": "프로젝트1건은 고객 가동시간으로3일 연기,1건은 담당자 병가로 재조정 중이며 취소 통보는 없습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "프로젝트1건은 고객 가동시간으로3일 연기,1건은 담당자 병가로 재조정 중이며 취소 통보는 없습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly02-f10",
+      "claim": "대표는9명 월단위 해지가능안을 우선 요청하며 연간계약은 미승인입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "대표는9명 월단위 해지가능안을 우선 요청하며 연간계약은 미승인입니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "weekly02-f01",
+    "weekly02-f02",
+    "weekly02-f03",
+    "weekly02-f04",
+    "weekly02-f05",
+    "weekly02-f06",
+    "weekly02-f07",
+    "weekly02-f08",
+    "weekly02-f09",
+    "weekly02-f10"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [
+    {
+      "field": "contract_target",
+      "expected": "목표 미제공; 차이·달성률 계산 금지"
+    }
+  ],
+  "allowed_derivations": [
+    {
+      "claim": "금주 미팅 9건, 월 누적 18건입니다. 금주 신규 서명 계약은 0건, 부가세 별도 0원입니다.",
+      "operation": "당기 미팅은 source_activity_id 중복 제거; 신규 서명은 event_id별 한 번 합산",
+      "expected": {
+        "meeting_count": 9,
+        "new_contract_count": 0,
+        "signed_amount_krw": 0
+      }
+    }
+  ],
+  "report_expectations": "목표→실적→차이→근거 있는 원인→다음 주 조치. 원인·목표 미제공은 미정으로 둡니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

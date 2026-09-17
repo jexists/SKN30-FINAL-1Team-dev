@@ -1,0 +1,153 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-06-17",
+  "period_start": null,
+  "period_end": null,
+  "sales_deal_id": null,
+  "template_snapshot": {
+    "fields": [
+      {
+        "id": "body",
+        "label": "본문"
+      }
+    ]
+  },
+  "content": {
+    "values": {}
+  },
+  "transcript": null,
+  "guidance": null,
+  "report_sources": {
+    "reports": [
+      {
+        "id": "56e352d9-f4e0-58bc-8a65-9252cf4180ba",
+        "submission_id": "4a1e8334-60b6-5a16-8eed-b9a59d898afd",
+        "source_activity_id": "56e352d9-f4e0-58bc-8a65-9252cf4180ba",
+        "report_date": "2026-06-17",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "e87a886e-31a5-5620-860a-527d02055a31",
+        "title": "수강 상담 CRM",
+        "values": {
+          "body": "6월16일 CRM10명·부가세 별도 연1,800만 원 계약이 양사서명 완료됐고 개시는7월1일 예정입니다. 문시우는6월19일까지 권한목록, 영업 담당자는6월22일까지10명 접근 테스트 결과를 전달할 예정입니다."
+        }
+      },
+      {
+        "id": "56e352d9-f4e0-58bc-8a65-9252cf4180ba",
+        "submission_id": "4a1e8334-60b6-5a16-8eed-b9a59d898afd",
+        "source_activity_id": "56e352d9-f4e0-58bc-8a65-9252cf4180ba",
+        "report_date": "2026-06-17",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5",
+        "title": "수강료 결제 연동",
+        "values": {
+          "body": "결제연동은 외부조회 권한과 추가사용료 미확정으로 보류하며 CRM 계약에 포함되지 않습니다."
+        }
+      },
+      {
+        "id": "56e352d9-f4e0-58bc-8a65-9252cf4180ba",
+        "submission_id": "4a1e8334-60b6-5a16-8eed-b9a59d898afd",
+        "source_activity_id": "56e352d9-f4e0-58bc-8a65-9252cf4180ba",
+        "report_date": "2026-06-17",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "33fdda96-b0ec-5ad0-99f3-192e905679a5",
+        "title": "상담사 실습 교육",
+        "values": {
+          "body": "교육안 방식은 검토됐지만 실제교육·날짜·250만 원 비용 승인은 미완료입니다."
+        }
+      },
+      {
+        "id": "38fc3d13-4df1-50a8-bf41-c2cce7a3a72f",
+        "submission_id": "c1def27f-335b-5bf5-ad48-303fb7128db6",
+        "source_activity_id": "38fc3d13-4df1-50a8-bf41-c2cce7a3a72f",
+        "report_date": "2026-06-17",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "788723af-dea7-5981-af8c-f268c44bdfa5",
+        "title": "거래처 주문 CRM",
+        "values": {
+          "body": "창고 장비 예산이 우선 배정되어 CRM 구매는 다음 달 재검토로 미뤄졌습니다."
+        }
+      },
+      {
+        "id": "38fc3d13-4df1-50a8-bf41-c2cce7a3a72f",
+        "submission_id": "c1def27f-335b-5bf5-ad48-303fb7128db6",
+        "source_activity_id": "38fc3d13-4df1-50a8-bf41-c2cce7a3a72f",
+        "report_date": "2026-06-17",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+        "title": "재고·유통기한 조회",
+        "values": {
+          "body": "가용100박스 수정은 확인됐으나 예약취소 갱신 검증과 운영사용 결정은 남아 있습니다."
+        }
+      },
+      {
+        "id": "38fc3d13-4df1-50a8-bf41-c2cce7a3a72f",
+        "submission_id": "c1def27f-335b-5bf5-ad48-303fb7128db6",
+        "source_activity_id": "38fc3d13-4df1-50a8-bf41-c2cce7a3a72f",
+        "report_date": "2026-06-17",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "d5d69129-86e8-5deb-b330-3160ce2fbc8e",
+        "title": "모바일 영업 교육",
+        "values": {
+          "body": "유료 모바일교육은 신청하지 않고 로그인·승인단가·오프라인 표시 안내자료만 요청합니다."
+        }
+      },
+      {
+        "id": "a75596cf-597c-5b09-b986-26b5a17362f5",
+        "submission_id": "394b8ff9-346f-5bfb-8f4a-327fa65f5b11",
+        "source_activity_id": "a75596cf-597c-5b09-b986-26b5a17362f5",
+        "report_date": "2026-06-17",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "e5aeb77a-a489-5410-9ca2-9e1e0e15fc11",
+        "title": "서비스 이력 CRM",
+        "values": {
+          "body": "기사표시 수정 후6건 재확인이 완료됐고 CRM은 지급조건 검토로 미체결입니다. 총액1,500만 원의2회 분납을 요청하며 희망 개시는7월6일이고 조항 합의는 진행 중입니다."
+        }
+      },
+      {
+        "id": "a75596cf-597c-5b09-b986-26b5a17362f5",
+        "submission_id": "394b8ff9-346f-5bfb-8f4a-327fa65f5b11",
+        "source_activity_id": "a75596cf-597c-5b09-b986-26b5a17362f5",
+        "report_date": "2026-06-17",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "cbef8e0a-62d2-5788-baa4-a0e736551385",
+        "title": "설치장비 대장 연동",
+        "values": {
+          "body": "누락된 설치일의 원본문서를 찾지 못해 설치일·보증상태 확인이 필요합니다."
+        }
+      }
+    ],
+    "meetings": [
+      {
+        "activity_id": "56e352d9-f4e0-58bc-8a65-9252cf4180ba",
+        "common_report": {
+          "body": "신규 계약 실적은 CRM1건1,800만 원이며 교육생 결제·연동비·교육비·수금은 포함하지 않습니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "38fc3d13-4df1-50a8-bf41-c2cce7a3a72f",
+        "common_report": {
+          "body": "6월19일까지 영업 담당자가 모바일 안내자료를 전달할 예정이며 사용자 의견 회수 기한은 미정입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "a75596cf-597c-5b09-b986-26b5a17362f5",
+        "common_report": {
+          "body": "6월19일까지 영업 담당자가2회분납 지급일·금액을 담은 초안을 전달하며 대장·야간지원은 별도 검토합니다."
+        },
+        "unassigned_report": null
+      }
+    ],
+    "activities": []
+  },
+  "attachments": []
+}

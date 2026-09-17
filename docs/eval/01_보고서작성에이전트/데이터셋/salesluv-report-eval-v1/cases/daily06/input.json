@@ -1,0 +1,166 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-06-12",
+  "period_start": null,
+  "period_end": null,
+  "sales_deal_id": null,
+  "template_snapshot": {
+    "fields": [
+      {
+        "id": "body",
+        "label": "본문"
+      }
+    ]
+  },
+  "content": {
+    "values": {}
+  },
+  "transcript": null,
+  "guidance": null,
+  "report_sources": {
+    "reports": [
+      {
+        "id": "71d26164-bad2-58b0-b969-25e433241d31",
+        "submission_id": "a867b045-11ee-507f-b37b-268f33d4b6b5",
+        "source_activity_id": "71d26164-bad2-58b0-b969-25e433241d31",
+        "report_date": "2026-06-12",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "title": "가맹점 지원 CRM",
+        "values": {
+          "body": "목록 접근차단은 확인됐으나 공유링크가 다른점포 계정에서 열리는 문제가 발견됐습니다. 비활성화된가상계정1개의기존링크접근도차단하는시험을 요구합니다. 본사계정도담당2점포한정권한이필요하며 담당변경후이전권한회수를 검토합니다. 접근거절은자료삭제와구분해안내하되 타점포이름·금액을노출하지않아야합니다. 정보시스템팀은링크차단·가맹지원팀은담당변경을검토하고 구매결정은미확정입니다."
+        }
+      },
+      {
+        "id": "71d26164-bad2-58b0-b969-25e433241d31",
+        "submission_id": "a867b045-11ee-507f-b37b-268f33d4b6b5",
+        "source_activity_id": "71d26164-bad2-58b0-b969-25e433241d31",
+        "report_date": "2026-06-12",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+        "title": "정산내역 조회 연동",
+        "values": {
+          "body": "공유권한 문제 해결 전 정산자료 연결을 보류하며 실제정산자료는 미전달입니다. 정산문서교체는구버전폐기·신버전안내가필요하며 문서공개취소와지급취소는 다릅니다. 가상예상수수료100,000-판촉조정20,000=확정80,000원을조회예시로 사용합니다. 실정산전달은권한검토·공개책임자지정후가능하며 기한은미정입니다."
+        }
+      },
+      {
+        "id": "71d26164-bad2-58b0-b969-25e433241d31",
+        "submission_id": "a867b045-11ee-507f-b37b-268f33d4b6b5",
+        "source_activity_id": "71d26164-bad2-58b0-b969-25e433241d31",
+        "report_date": "2026-06-12",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "9997f1de-d368-5518-a8e2-aa982fdb4158",
+        "title": "점주 이용 교육",
+        "values": {
+          "body": "점주교육 일정·참석자는 미정이고 본사 권한검토 설명만 먼저 요청합니다. 교육설명은가상점포화면을사용하며 실제점주계정공유는원하지않습니다."
+        }
+      },
+      {
+        "id": "30b0b656-d479-57be-8f6c-37eecdf8e756",
+        "submission_id": "bb4b8fe4-2e4d-54c8-973e-b1526a351ab3",
+        "source_activity_id": "30b0b656-d479-57be-8f6c-37eecdf8e756",
+        "report_date": "2026-06-12",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "title": "프로젝트 영업 CRM",
+        "values": {
+          "body": "6건 중1건의 복수 대기사유 표시 보완이 필요합니다."
+        }
+      },
+      {
+        "id": "30b0b656-d479-57be-8f6c-37eecdf8e756",
+        "submission_id": "bb4b8fe4-2e4d-54c8-973e-b1526a351ab3",
+        "source_activity_id": "30b0b656-d479-57be-8f6c-37eecdf8e756",
+        "report_date": "2026-06-12",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "b64a61e9-e961-5a35-b788-258dea5d9621",
+        "title": "현장조사 일정 연계",
+        "values": {
+          "body": "미정 일정은 담당자 회신 전 비워 두며 사업장 식별번호로 일정 혼입을 방지해야 합니다."
+        }
+      },
+      {
+        "id": "30b0b656-d479-57be-8f6c-37eecdf8e756",
+        "submission_id": "bb4b8fe4-2e4d-54c8-973e-b1526a351ab3",
+        "source_activity_id": "30b0b656-d479-57be-8f6c-37eecdf8e756",
+        "report_date": "2026-06-12",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "title": "보안·자료전환 지원",
+        "values": {
+          "body": "관리자2명 다운로드·일반사용자 조회·이력확인 조건을 시험하기 전 실도면은 미제공입니다."
+        }
+      },
+      {
+        "id": "237884f2-9910-5d07-8cf2-16ecab55071d",
+        "submission_id": "76d48b7a-4b72-5fcf-8f0d-28a896aa9c5b",
+        "source_activity_id": "237884f2-9910-5d07-8cf2-16ecab55071d",
+        "report_date": "2026-06-12",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "56e34430-ebf2-5b29-86bc-cca406076003",
+        "title": "제작 영업 CRM",
+        "values": {
+          "body": "대표는9명 월단위 해지가능안을 우선 요청하며 연간계약은 미승인입니다. 월청구연간의무와월단위해지는다르며 해지후잔여비용조건이핵심입니다. 일회성설정비·월이용료·연간총액의월환산은구분해서제시해야합니다."
+        }
+      },
+      {
+        "id": "237884f2-9910-5d07-8cf2-16ecab55071d",
+        "submission_id": "76d48b7a-4b72-5fcf-8f0d-28a896aa9c5b",
+        "source_activity_id": "237884f2-9910-5d07-8cf2-16ecab55071d",
+        "report_date": "2026-06-12",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "fce17706-12aa-5c1c-bd6b-144a25b67526",
+        "title": "견적 버전 자동화",
+        "values": {
+          "body": "3건 중1건의 세로형 영상 추가가 기존 수정으로 잘못분류되어 새산출물로 수정해야 합니다. 다른비율영상은재편집이필요한새산출물이며 단순자막수정과구분합니다. 가상3번프로젝트는촬영2일·기본수정2회·세로형1개추가요청이며 추가비승인·작업착수전입니다. 이전견적승인과새변경안승인은분리하고 승인버전·메일일자를보존해야합니다. 기존고객발송견적PDF는보존하고 내부초안과발송본을구분해야합니다."
+        }
+      },
+      {
+        "id": "237884f2-9910-5d07-8cf2-16ecab55071d",
+        "submission_id": "76d48b7a-4b72-5fcf-8f0d-28a896aa9c5b",
+        "source_activity_id": "237884f2-9910-5d07-8cf2-16ecab55071d",
+        "report_date": "2026-06-12",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "a887668f-84c1-58ec-a6fb-33a718204ea9",
+        "title": "프로듀서 이용 교육",
+        "values": {
+          "body": "교육은 견적분류 수정 후 검토하며 비용·날짜는 미정입니다. 교육기본대상은프로듀서9명이며 재무참석은미확정이고 역할별실습구분이필요합니다."
+        }
+      }
+    ],
+    "meetings": [
+      {
+        "activity_id": "71d26164-bad2-58b0-b969-25e433241d31",
+        "common_report": {
+          "body": "6월15일까지 교차점포 링크거절·폐기링크 차단 결과를 요청합니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "30b0b656-d479-57be-8f6c-37eecdf8e756",
+        "common_report": {
+          "body": "프로젝트1건은 고객 가동시간으로3일 연기,1건은 담당자 병가로 재조정 중이며 취소 통보는 없습니다. 6월15일까지 복수사유 표시와 관리자외 다운로드 차단 시험 결과를 요청합니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "237884f2-9910-5d07-8cf2-16ecab55071d",
+        "common_report": {
+          "body": "6월15일까지 초기비·월료·중도해지 조건안과 신규산출물 수정화면을 요청합니다. 관리도구검토지연은기존고객제작계약취소나제작중단을의미하지않습니다."
+        },
+        "unassigned_report": null
+      }
+    ],
+    "activities": []
+  },
+  "attachments": []
+}

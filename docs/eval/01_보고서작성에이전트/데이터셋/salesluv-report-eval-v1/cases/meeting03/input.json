@@ -1,0 +1,1218 @@
+{
+  "transcript": "영업 담당자: 오늘은 모아리빙에서 말씀하신 중복 상담과 반품 상태를 나누어 확인하겠습니다. 먼저 상담 쪽에서는 전화와 온라인 문의를 주문 정보와 연결하고, 반품 쪽에서는 주문 상태와 반품 접수 이력을 연결하는 방식으로 설명드리겠습니다.\n서이든: 상담은 하루 평균 150건 정도 접수됩니다. 그런데 한 주문에 전화와 채팅이 함께 들어오면 같은 고객이 다시 문의한 것인지, 새로운 주문에서 들어온 문의인지 구분하기가 어렵습니다.\n영업 담당자: 하루 평균 150건이라는 접수량은 그대로 보되, 동일 주문에서 발생한 재문의는 신규 주문으로 세지 않는 기준이 필요합니다. 예를 들어 같은 주문에 전화가 먼저 기록되고 이후 온라인 채팅이 들어오면, 새 주문 건으로 늘리는 대신 기존 주문에 별도의 상담 이력으로 연결하는 방식입니다.\n서이든: 그렇다면 재문의 자체를 없던 일처럼 처리하는 건 아니군요. 상담 건수에서는 신규 주문과 구분하고, 상담 이력에는 전화와 채팅이 각각 남는다는 뜻으로 이해하면 될까요?\n영업 담당자: 맞습니다. 재문의는 별도 상담 이력으로 남기되 신규 주문으로 계산하지 않습니다. 이 기능의 목적도 문의 수가 줄었다고 보이게 만드는 것이 아니라, 다른 담당자가 앞선 답변을 확인할 수 있게 하는 데 있습니다.\n서이든: 담당자가 바뀌면 고객이 이미 설명한 내용을 다시 묻는 일이 특히 불편합니다. 이전 답변을 찾는 과정이 상담 화면 안에서 가능한지가 중요하겠습니다.\n영업 담당자: 이번 시범에서 중심으로 볼 부분이 바로 같은 주문의 이전 답변 검색입니다. 앞선 상담 내용을 담당자가 읽고 이어서 응대할 수 있는지 확인하는 범위로 보시면 됩니다.\n서이든: 검색 결과가 나오면 시스템이 추천 문장을 바로 고객에게 보내는 방식인가요? 자동으로 답변까지 나가면 편할 것 같지만, 내용이 맞는지 검토할 필요도 있어 보입니다.\n영업 담당자: 자동 답변 발송은 이번 요구 범위에 넣지 않습니다. 검색된 내용을 담당자가 읽고 확인한 뒤 최종적으로 발송하는 흐름입니다. 따라서 시범 화면에서 이전 답변을 찾을 수 있는지는 보되, 자동 발송 여부를 성과로 판단하지는 않습니다.\n서이든: 그럼 데모에서 상담이 줄었다거나 고객 만족도가 개선됐다고 결론 내리면 안 되겠네요. 실제 운영을 해 보지 않고는 재문의 감소나 만족도 변화를 확인하기 어렵다는 뜻이죠.\n영업 담당자: 네. 재문의가 실제로 줄어드는지 확인하려면 운영 기간이 필요합니다. 이번 시범 한 번만으로 고객 만족도가 올랐다고 확정해서 말할 수는 없습니다.\n서이든: 시범에 넣을 상담 자료도 확인하고 싶습니다. 보안 승인이 아직 완료되지 않은 상태라면 실제 고객 자료를 가져오는 방식은 곤란합니다.\n영업 담당자: 보안 승인은 아직 받지 못한 상태이므로, 승인 전 시범에서는 비식별 상담 15건만 사용합니다. 주문번호도 가상 값을 사용하고 실제 주소나 결제정보는 외부 시범 계정에 반입하지 않습니다.\n서이든: 상담 담당자 여덟 명을 검토 대상으로 잡았다는 이야기도 있었는데, 그분들 계정이 이미 발급된 건가요? 실제 담당자 정보가 들어간다면 보안 검토가 달라질 수 있어서요.\n영업 담당자: 검토 대상으로 상담 담당자 여덟 명을 잡았을 뿐, 시범 계정을 실제로 발급한 것은 아닙니다. 따라서 현재 화면 확인은 가상 주문번호와 비식별 상담 15건을 기준으로 하고, 실제 주소와 결제정보를 넣는 동의로 해석해서는 안 됩니다.\n서이든: 좋습니다. 상담 쪽은 신규 주문과 재문의를 구분하고, 이전 답변 검색을 확인하되 자동 발송이나 만족도 개선을 약속하지 않는 것으로 정리하겠습니다.\n영업 담당자: 반품 쪽은 상태를 한 단계로 묶지 않는 것이 핵심입니다. 주문 상태와 반품 접수 이력은 연결하되, 환불 지급이 확정됐다는 판단은 결제 시스템에서 확인하는 구조로 나누어 보겠습니다.\n서이든: 현재는 상품이 회수되면 환불도 진행된 것으로 이해하는 경우가 있습니다. 접수만 된 상태인지, 회수된 상태인지, 실제로 돈이 지급된 상태인지 화면에서 분명히 달라야 합니다.\n영업 담당자: 반품 접수, 회수, 검수, 환불 요청, 실제 지급을 각각 분리해 표시해야 합니다. 상품이 회수됐다는 사실만으로 결제가 자동 취소된 것으로 처리하지 않고, 실제 지급 완료는 결제사의 완료 응답을 받은 경우에만 안내하는 기준입니다.\n서이든: 검수 후 환불 요청을 보냈더라도 결제사에서 오류 응답이 오면 지급 완료가 아니겠네요. 그 오류 상태를 상담 담당자가 확인할 수 있어야 고객에게 잘못 안내하지 않을 것 같습니다.\n영업 담당자: 맞습니다. 환불 요청과 실제 지급은 분리됩니다. 결제사에서 오류 응답이 오면 지급 완료로 표시하지 않고, 상담 담당자가 그 상태를 확인할 수 있어야 합니다. 완료 응답이 확인된 건만 지급 완료라고 안내합니다.\n서이든: 한 주문에서 부분반품이 여러 번 생기는 경우도 있습니다. 첫 번째에는 일부 품목만 반품하고, 나중에 다른 품목을 다시 접수할 수 있는데, 이런 경우 주문 전체 금액을 기준으로 처리하면 위험하지 않을까요?\n영업 담당자: 그래서 한 주문에 복수의 부분반품이 발생할 수 있는 경우를 전제로 봐야 합니다. 반품 접수가 두 번 있을 수 있고, 동일한 접수가 다시 전송될 수도 있으므로 주문 전체 금액만 보고 처리하면 중복 환불 위험이 생깁니다.\n서이든: 재전송된 같은 접수를 새로운 반품으로 오인하지 않으려면 어떤 정보를 같이 봐야 합니까? 상품 수량과 이미 지급된 금액을 함께 확인해야 한다고 이해했습니다.\n영업 담당자: 네. 예시에서는 상품별 수량과 이전 지급액을 함께 확인하도록 하겠습니다. 이미 일부 상품에 지급된 금액이 있다면 그 내역을 반영해, 한 주문의 결제금액 전체가 두 번 환불되지 않도록 확인하는 흐름입니다.\n서이든: 그 기준이면 접수 횟수만 세는 것보다 실제 상품 단위의 상태를 보는 편이 낫겠습니다. 다만 반품 접수가 두 건이라는 이유만으로 두 번의 전체 환불을 만들면 안 된다는 점을 명확히 해야겠네요.\n영업 담당자: 맞습니다. 접수 횟수와 지급 금액은 같은 의미가 아닙니다. 부분반품이 여러 번 발생하거나 동일 접수가 재전송된 경우에도 상품별 수량과 이전 지급액을 기준으로 확인해야 하며, 주문금액 전체를 중복 환불하지 않는 것이 핵심입니다.\n서이든: 주문 상태와 반품 이력이 연결되더라도 지급 확정은 별도로 결제 시스템에서 확인한다는 점도 같이 표시해 주세요. 상담자가 회수 완료만 보고 환불 완료라고 말하지 않도록 해야 합니다.\n영업 담당자: 그 구분을 전제로 설명하겠습니다. 주문과 반품 기록은 연결하지만, 환불 지급 확정은 결제 시스템의 응답으로 확인합니다. 회수나 검수, 환불 요청이 완료됐다는 사실을 실제 지급 완료와 같은 상태로 취급하지 않겠습니다.\n서이든: 자료를 검토하려면 보관 위치와 접근 권한도 확인해야 합니다. 그리고 부분반품 예시가 있어야 보안 담당자와 업무 담당자가 같은 화면을 보고 판단할 수 있습니다.\n영업 담당자: 보관 위치와 접근 권한을 설명하는 자료, 그리고 부분반품 예시를 6월 5일까지 전달할 예정입니다. 전달할 자료에는 요청하신 두 종류의 내용이 포함되도록 하겠습니다.\n서이든: 제가 자료를 받으면 보안 담당자에게 검토 요청을 올리겠습니다. 다만 자료를 받는 것과 보안 승인이 난 것은 별개의 단계로 처리해야 합니다.\n영업 담당자: 네. 자료 수신과 보안 승인을 같은 일로 보지 않겠습니다. 설명서와 예시를 전달한 뒤 필수 항목이 포함됐는지 확인하는 단계가 있고, 보안 담당자의 승인 여부는 별도로 남겨야 합니다.\n서이든: 그럼 현재 합의된 범위는 이렇습니다. 상담은 하루 평균 150건을 기준으로 신규 주문과 재문의를 나누고, 비식별 상담 15건으로 이전 답변 검색을 확인합니다. 실제 주소와 결제정보는 쓰지 않고, 계정도 아직 발급하지 않은 상태입니다.\n영업 담당자: 그리고 상담 시범에서 자동 답변을 보내거나 고객만족도 개선을 확정하지 않습니다. 담당자가 이전 답변을 읽고 최종 발송하는 흐름만 확인하며, 실제 변화는 운영 기간 없이는 판단하지 않습니다.\n서이든: 반품은 접수, 회수, 검수, 환불 요청, 실제 지급을 나누고, 결제사의 완료 응답이 없으면 지급 완료로 안내하지 않습니다. 부분반품이 여러 번 있거나 재전송돼도 상품별 수량과 이전 지급액을 확인해 전체 금액의 중복 환불을 막는 것으로요.\n영업 담당자: 네. 마지막으로 보관 위치·접근 권한 설명서와 부분반품 예시는 6월 5일까지 전달 예정이며, 그 이후 검토와 승인 여부는 별도로 확인하는 것으로 정리하겠습니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "3e098414300aa2df29e1b7694e06cc00da038bd3798c26b5166828858b65d372",
+    "selected_deal_ids": [
+      "6ca8c414-0109-5efa-b007-5d809037d282",
+      "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 50,
+          "text": "영업 담당자: 오늘은 모아리빙에서 말씀하신 중복 상담과 반품 상태를 나누어 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282",
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 51,
+          "end": 131,
+          "text": "먼저 상담 쪽에서는 전화와 온라인 문의를 주문 정보와 연결하고, 반품 쪽에서는 주문 상태와 반품 접수 이력을 연결하는 방식으로 설명드리겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282",
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 132,
+          "end": 161,
+          "text": "서이든: 상담은 하루 평균 150건 정도 접수됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 162,
+          "end": 237,
+          "text": "그런데 한 주문에 전화와 채팅이 함께 들어오면 같은 고객이 다시 문의한 것인지, 새로운 주문에서 들어온 문의인지 구분하기가 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 238,
+          "end": 314,
+          "text": "영업 담당자: 하루 평균 150건이라는 접수량은 그대로 보되, 동일 주문에서 발생한 재문의는 신규 주문으로 세지 않는 기준이 필요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 315,
+          "end": 403,
+          "text": "예를 들어 같은 주문에 전화가 먼저 기록되고 이후 온라인 채팅이 들어오면, 새 주문 건으로 늘리는 대신 기존 주문에 별도의 상담 이력으로 연결하는 방식입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 404,
+          "end": 441,
+          "text": "서이든: 그렇다면 재문의 자체를 없던 일처럼 처리하는 건 아니군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 442,
+          "end": 501,
+          "text": "상담 건수에서는 신규 주문과 구분하고, 상담 이력에는 전화와 채팅이 각각 남는다는 뜻으로 이해하면 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 502,
+          "end": 515,
+          "text": "영업 담당자: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 516,
+          "end": 554,
+          "text": "재문의는 별도 상담 이력으로 남기되 신규 주문으로 계산하지 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 555,
+          "end": 626,
+          "text": "이 기능의 목적도 문의 수가 줄었다고 보이게 만드는 것이 아니라, 다른 담당자가 앞선 답변을 확인할 수 있게 하는 데 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 627,
+          "end": 674,
+          "text": "서이든: 담당자가 바뀌면 고객이 이미 설명한 내용을 다시 묻는 일이 특히 불편합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 675,
+          "end": 713,
+          "text": "이전 답변을 찾는 과정이 상담 화면 안에서 가능한지가 중요하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 714,
+          "end": 763,
+          "text": "영업 담당자: 이번 시범에서 중심으로 볼 부분이 바로 같은 주문의 이전 답변 검색입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 764,
+          "end": 813,
+          "text": "앞선 상담 내용을 담당자가 읽고 이어서 응대할 수 있는지 확인하는 범위로 보시면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 814,
+          "end": 860,
+          "text": "서이든: 검색 결과가 나오면 시스템이 추천 문장을 바로 고객에게 보내는 방식인가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 861,
+          "end": 909,
+          "text": "자동으로 답변까지 나가면 편할 것 같지만, 내용이 맞는지 검토할 필요도 있어 보입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 910,
+          "end": 946,
+          "text": "영업 담당자: 자동 답변 발송은 이번 요구 범위에 넣지 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 947,
+          "end": 986,
+          "text": "검색된 내용을 담당자가 읽고 확인한 뒤 최종적으로 발송하는 흐름입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 987,
+          "end": 1045,
+          "text": "따라서 시범 화면에서 이전 답변을 찾을 수 있는지는 보되, 자동 발송 여부를 성과로 판단하지는 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 1046,
+          "end": 1097,
+          "text": "서이든: 그럼 데모에서 상담이 줄었다거나 고객 만족도가 개선됐다고 결론 내리면 안 되겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 1098,
+          "end": 1144,
+          "text": "실제 운영을 해 보지 않고는 재문의 감소나 만족도 변화를 확인하기 어렵다는 뜻이죠."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 1145,
+          "end": 1155,
+          "text": "영업 담당자: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 1156,
+          "end": 1190,
+          "text": "재문의가 실제로 줄어드는지 확인하려면 운영 기간이 필요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1191,
+          "end": 1233,
+          "text": "이번 시범 한 번만으로 고객 만족도가 올랐다고 확정해서 말할 수는 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1234,
+          "end": 1263,
+          "text": "서이든: 시범에 넣을 상담 자료도 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1264,
+          "end": 1312,
+          "text": "보안 승인이 아직 완료되지 않은 상태라면 실제 고객 자료를 가져오는 방식은 곤란합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1313,
+          "end": 1373,
+          "text": "영업 담당자: 보안 승인은 아직 받지 못한 상태이므로, 승인 전 시범에서는 비식별 상담 15건만 사용합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1374,
+          "end": 1424,
+          "text": "주문번호도 가상 값을 사용하고 실제 주소나 결제정보는 외부 시범 계정에 반입하지 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1425,
+          "end": 1486,
+          "text": "서이든: 상담 담당자 여덟 명을 검토 대상으로 잡았다는 이야기도 있었는데, 그분들 계정이 이미 발급된 건가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1487,
+          "end": 1522,
+          "text": "실제 담당자 정보가 들어간다면 보안 검토가 달라질 수 있어서요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1523,
+          "end": 1582,
+          "text": "영업 담당자: 검토 대상으로 상담 담당자 여덟 명을 잡았을 뿐, 시범 계정을 실제로 발급한 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1583,
+          "end": 1659,
+          "text": "따라서 현재 화면 확인은 가상 주문번호와 비식별 상담 15건을 기준으로 하고, 실제 주소와 결제정보를 넣는 동의로 해석해서는 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1660,
+          "end": 1670,
+          "text": "서이든: 좋습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1671,
+          "end": 1746,
+          "text": "상담 쪽은 신규 주문과 재문의를 구분하고, 이전 답변 검색을 확인하되 자동 발송이나 만족도 개선을 약속하지 않는 것으로 정리하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1747,
+          "end": 1786,
+          "text": "영업 담당자: 반품 쪽은 상태를 한 단계로 묶지 않는 것이 핵심입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1787,
+          "end": 1855,
+          "text": "주문 상태와 반품 접수 이력은 연결하되, 환불 지급이 확정됐다는 판단은 결제 시스템에서 확인하는 구조로 나누어 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1856,
+          "end": 1900,
+          "text": "서이든: 현재는 상품이 회수되면 환불도 진행된 것으로 이해하는 경우가 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1901,
+          "end": 1956,
+          "text": "접수만 된 상태인지, 회수된 상태인지, 실제로 돈이 지급된 상태인지 화면에서 분명히 달라야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1957,
+          "end": 2010,
+          "text": "영업 담당자: 반품 접수, 회수, 검수, 환불 요청, 실제 지급을 각각 분리해 표시해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 2011,
+          "end": 2092,
+          "text": "상품이 회수됐다는 사실만으로 결제가 자동 취소된 것으로 처리하지 않고, 실제 지급 완료는 결제사의 완료 응답을 받은 경우에만 안내하는 기준입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 2093,
+          "end": 2145,
+          "text": "서이든: 검수 후 환불 요청을 보냈더라도 결제사에서 오류 응답이 오면 지급 완료가 아니겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 2146,
+          "end": 2196,
+          "text": "그 오류 상태를 상담 담당자가 확인할 수 있어야 고객에게 잘못 안내하지 않을 것 같습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 2197,
+          "end": 2210,
+          "text": "영업 담당자: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 2211,
+          "end": 2231,
+          "text": "환불 요청과 실제 지급은 분리됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 2232,
+          "end": 2292,
+          "text": "결제사에서 오류 응답이 오면 지급 완료로 표시하지 않고, 상담 담당자가 그 상태를 확인할 수 있어야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 2293,
+          "end": 2321,
+          "text": "완료 응답이 확인된 건만 지급 완료라고 안내합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 2322,
+          "end": 2358,
+          "text": "서이든: 한 주문에서 부분반품이 여러 번 생기는 경우도 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 2359,
+          "end": 2440,
+          "text": "첫 번째에는 일부 품목만 반품하고, 나중에 다른 품목을 다시 접수할 수 있는데, 이런 경우 주문 전체 금액을 기준으로 처리하면 위험하지 않을까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0050",
+          "start": 2441,
+          "end": 2493,
+          "text": "영업 담당자: 그래서 한 주문에 복수의 부분반품이 발생할 수 있는 경우를 전제로 봐야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0051",
+          "start": 2494,
+          "end": 2570,
+          "text": "반품 접수가 두 번 있을 수 있고, 동일한 접수가 다시 전송될 수도 있으므로 주문 전체 금액만 보고 처리하면 중복 환불 위험이 생깁니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0052",
+          "start": 2571,
+          "end": 2624,
+          "text": "서이든: 재전송된 같은 접수를 새로운 반품으로 오인하지 않으려면 어떤 정보를 같이 봐야 합니까?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0053",
+          "start": 2625,
+          "end": 2662,
+          "text": "상품 수량과 이미 지급된 금액을 함께 확인해야 한다고 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0054",
+          "start": 2663,
+          "end": 2673,
+          "text": "영업 담당자: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0055",
+          "start": 2674,
+          "end": 2711,
+          "text": "예시에서는 상품별 수량과 이전 지급액을 함께 확인하도록 하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0056",
+          "start": 2712,
+          "end": 2784,
+          "text": "이미 일부 상품에 지급된 금액이 있다면 그 내역을 반영해, 한 주문의 결제금액 전체가 두 번 환불되지 않도록 확인하는 흐름입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0057",
+          "start": 2785,
+          "end": 2837,
+          "text": "서이든: 그 기준이면 접수 횟수만 세는 것보다 실제 상품 단위의 상태를 보는 편이 낫겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0058",
+          "start": 2838,
+          "end": 2896,
+          "text": "다만 반품 접수가 두 건이라는 이유만으로 두 번의 전체 환불을 만들면 안 된다는 점을 명확히 해야겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0059",
+          "start": 2897,
+          "end": 2910,
+          "text": "영업 담당자: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0060",
+          "start": 2911,
+          "end": 2937,
+          "text": "접수 횟수와 지급 금액은 같은 의미가 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0061",
+          "start": 2938,
+          "end": 3031,
+          "text": "부분반품이 여러 번 발생하거나 동일 접수가 재전송된 경우에도 상품별 수량과 이전 지급액을 기준으로 확인해야 하며, 주문금액 전체를 중복 환불하지 않는 것이 핵심입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0062",
+          "start": 3032,
+          "end": 3098,
+          "text": "서이든: 주문 상태와 반품 이력이 연결되더라도 지급 확정은 별도로 결제 시스템에서 확인한다는 점도 같이 표시해 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0063",
+          "start": 3099,
+          "end": 3137,
+          "text": "상담자가 회수 완료만 보고 환불 완료라고 말하지 않도록 해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0064",
+          "start": 3138,
+          "end": 3164,
+          "text": "영업 담당자: 그 구분을 전제로 설명하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0065",
+          "start": 3165,
+          "end": 3212,
+          "text": "주문과 반품 기록은 연결하지만, 환불 지급 확정은 결제 시스템의 응답으로 확인합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0066",
+          "start": 3213,
+          "end": 3266,
+          "text": "회수나 검수, 환불 요청이 완료됐다는 사실을 실제 지급 완료와 같은 상태로 취급하지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0067",
+          "start": 3267,
+          "end": 3305,
+          "text": "서이든: 자료를 검토하려면 보관 위치와 접근 권한도 확인해야 합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0068",
+          "start": 3306,
+          "end": 3360,
+          "text": "그리고 부분반품 예시가 있어야 보안 담당자와 업무 담당자가 같은 화면을 보고 판단할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0069",
+          "start": 3361,
+          "end": 3423,
+          "text": "영업 담당자: 보관 위치와 접근 권한을 설명하는 자료, 그리고 부분반품 예시를 6월 5일까지 전달할 예정입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0070",
+          "start": 3424,
+          "end": 3460,
+          "text": "전달할 자료에는 요청하신 두 종류의 내용이 포함되도록 하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0071",
+          "start": 3461,
+          "end": 3500,
+          "text": "서이든: 제가 자료를 받으면 보안 담당자에게 검토 요청을 올리겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0072",
+          "start": 3501,
+          "end": 3543,
+          "text": "다만 자료를 받는 것과 보안 승인이 난 것은 별개의 단계로 처리해야 합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0073",
+          "start": 3544,
+          "end": 3554,
+          "text": "영업 담당자: 네."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0074",
+          "start": 3555,
+          "end": 3584,
+          "text": "자료 수신과 보안 승인을 같은 일로 보지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0075",
+          "start": 3585,
+          "end": 3653,
+          "text": "설명서와 예시를 전달한 뒤 필수 항목이 포함됐는지 확인하는 단계가 있고, 보안 담당자의 승인 여부는 별도로 남겨야 합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0076",
+          "start": 3654,
+          "end": 3679,
+          "text": "서이든: 그럼 현재 합의된 범위는 이렇습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0077",
+          "start": 3680,
+          "end": 3747,
+          "text": "상담은 하루 평균 150건을 기준으로 신규 주문과 재문의를 나누고, 비식별 상담 15건으로 이전 답변 검색을 확인합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0078",
+          "start": 3748,
+          "end": 3789,
+          "text": "실제 주소와 결제정보는 쓰지 않고, 계정도 아직 발급하지 않은 상태입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0079",
+          "start": 3790,
+          "end": 3842,
+          "text": "영업 담당자: 그리고 상담 시범에서 자동 답변을 보내거나 고객만족도 개선을 확정하지 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0080",
+          "start": 3843,
+          "end": 3903,
+          "text": "담당자가 이전 답변을 읽고 최종 발송하는 흐름만 확인하며, 실제 변화는 운영 기간 없이는 판단하지 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "6ca8c414-0109-5efa-b007-5d809037d282"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0081",
+          "start": 3904,
+          "end": 3977,
+          "text": "서이든: 반품은 접수, 회수, 검수, 환불 요청, 실제 지급을 나누고, 결제사의 완료 응답이 없으면 지급 완료로 안내하지 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0082",
+          "start": 3978,
+          "end": 4041,
+          "text": "부분반품이 여러 번 있거나 재전송돼도 상품별 수량과 이전 지급액을 확인해 전체 금액의 중복 환불을 막는 것으로요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0083",
+          "start": 4042,
+          "end": 4052,
+          "text": "영업 담당자: 네."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0084",
+          "start": 4053,
+          "end": 4139,
+          "text": "마지막으로 보관 위치·접근 권한 설명서와 부분반품 예시는 6월 5일까지 전달 예정이며, 그 이후 검토와 승인 여부는 별도로 확인하는 것으로 정리하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-01T13:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "92e71d20-e860-5062-adca-7de41b19261b",
+      "name": "모아리빙(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "f411f5bf-9ba6-5a2e-b2a2-7a7a11320229",
+      "name": "서이든(가상)"
+    },
+    "activity": {
+      "id": "9bdaef0b-5b31-589f-aad5-c2784c11520d",
+      "starts_at": "2026-06-01T13:00:00+09:00",
+      "title": "중복 상담과 반품 상태 정의"
+    },
+    "deals": [
+      {
+        "id": "6ca8c414-0109-5efa-b007-5d809037d282",
+        "company_id": "company03",
+        "contact_id": "contact03",
+        "title": "상담 통합 CRM",
+        "description": "전화·온라인 상담을 주문과 연결해 중복 문의를 줄이는 고객응대 CRM.",
+        "deal_amount": 18000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "6ca8c414-0109-5efa-b007-5d809037d282",
+        "observed_state": "도입 검토; 계약 없음"
+      },
+      {
+        "id": "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0",
+        "company_id": "company03",
+        "contact_id": "contact03",
+        "title": "주문·반품 연동",
+        "description": "주문 상태와 반품 접수 이력을 연결하되 환불 지급 확정은 결제 시스템에서 확인하는 연동.",
+        "deal_amount": 6000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0",
+        "observed_state": "도입 검토; 계약 없음"
+      }
+    ],
+    "previous_reports": [],
+    "trade_history": []
+  },
+  "attachments": []
+}

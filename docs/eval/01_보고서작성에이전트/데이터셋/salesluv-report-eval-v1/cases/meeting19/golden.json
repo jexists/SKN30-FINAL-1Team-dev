@@ -1,0 +1,229 @@
+{
+  "case_id": "meeting19",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting19-f01",
+      "claim": "20건 시범의 회신 중앙값은 0.8일이고 승인 누락은 0건입니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 0,
+          "end": 131,
+          "quote": "영업 담당자: 오늘은 시범 운영 결과와 아직 정리되지 않은 계약 조건을 나눠서 확인하겠습니다. 먼저 견적·고객관리 CRM 쪽부터 말씀드리면, 전체 20건을 기준으로 회신 시간의 중앙값은 0.8일이었고 승인 누락은 0건으로 확인됐습니다.",
+          "segment_ids": [
+            "S0001",
+            "S0002"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting19-f01"
+    },
+    {
+      "id": "meeting19-f02",
+      "claim": "시범은 통과했지만 자동 갱신 삭제 조항 검토가 남아 계약은 미체결입니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 553,
+          "end": 692,
+          "quote": "영업 담당자: 계약 상태도 확인하겠습니다. 시범 자체는 통과한 것으로 보지만, 자동 갱신 조항을 삭제한 수정 계약서를 아직 검토하지 못했습니다. 그래서 현재 서명이나 발주가 완료된 상태는 아니고, 연간 2,400만 원 조건으로 검토 중인 단계입니다.",
+          "segment_ids": [
+            "S0013",
+            "S0014",
+            "S0015"
+          ]
+        },
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 693,
+          "end": 820,
+          "quote": "고은서: 네, 아직 서명이나 발주는 없습니다. 자동 갱신 문구가 남아 있으면 진행하기 어렵고, 그 부분을 삭제한 계약서를 다시 봐야 합니다. 시범 결과가 괜찮았다는 것과 계약이 체결됐다는 것은 저희 내부에서도 구분하고 있습니다.",
+          "segment_ids": [
+            "S0016",
+            "S0017",
+            "S0018"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting19-f02"
+    },
+    {
+      "id": "meeting19-f03",
+      "claim": "교육은 두 회차 운영안 검토 단계이며 참석자·비용 승인은 미확정입니다.",
+      "sales_deal_id": "deal01-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 916,
+          "end": 1044,
+          "quote": "고은서: 그리고 교육은 CRM 계약에 자동으로 넣지 않았으면 합니다. 관심은 있지만, 주간 영업조와 오후 생산 협력조가 따로 근무해서 한 번의 집체교육으로 끝내기는 어렵습니다. 두 회차 운영안을 먼저 받아 보고 결정하려고 합니다.",
+          "segment_ids": [
+            "S0022",
+            "S0023",
+            "S0024"
+          ]
+        },
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 1045,
+          "end": 1149,
+          "quote": "영업 담당자: 현장 영업 교육은 별도로 검토하는 것으로 하겠습니다. 현재는 두 회차 운영안을 살펴보는 단계이고, 참석자와 교육비에 대한 승인도 아직 확정되지 않은 상태로 이해하면 될까요?",
+          "segment_ids": [
+            "S0025",
+            "S0026"
+          ]
+        },
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 1150,
+          "end": 1267,
+          "quote": "고은서: 네. 참석 대상도 아직 정리 중이고 교육비도 승인 전입니다. 교육에 관심이 있다는 것과 실제 교육을 진행하기로 했다는 것은 다릅니다. 운영안을 본 뒤 내부에서 참석 범위와 비용을 함께 검토해야 합니다.",
+          "segment_ids": [
+            "S0027",
+            "S0028",
+            "S0029",
+            "S0030"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting19-f03"
+    },
+    {
+      "id": "meeting19-f04",
+      "claim": "시간 단축의 전체 원인을 CRM으로 단정할 수 없으며 생산팀 응답 속도 영향도 확인이 필요합니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 248,
+          "end": 419,
+          "quote": "영업 담당자: 맞습니다. 0.8일이라는 정량 결과는 확인됐지만, 시간이 줄어든 원인을 전부 CRM으로 단정할 수는 없습니다. 이번 주에는 생산팀의 응답 자체가 평소보다 빨랐다는 변수도 있었으니까요. 다음 운영 기간에는 승인 대기시간과 문서 검색시간을 나눠서 측정해야 원인을 조금 더 분명히 볼 수 있습니다.",
+          "segment_ids": [
+            "S0006",
+            "S0007",
+            "S0008",
+            "S0009"
+          ]
+        },
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 420,
+          "end": 552,
+          "quote": "고은서: 그 구분은 필요합니다. 생산팀이 빨리 답한 영향까지 CRM 효과로 묶으면 내부에서 결과를 과하게 해석할 수 있어요. 특히 이번 수치는 한 달 전체 실적이나 매출 증가를 보여 주는 자료는 아니니, 실제 운영을 더 지켜봐야 합니다.",
+          "segment_ids": [
+            "S0010",
+            "S0011",
+            "S0012"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting19-f04"
+    },
+    {
+      "id": "meeting19-f05",
+      "claim": "교육 완료 기준은 테스트 견적 작성과 승인 요청 실습이며 실제 교육은 아직 진행하지 않았습니다.",
+      "sales_deal_id": "deal01-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 1268,
+          "end": 1379,
+          "quote": "영업 담당자: 완료 기준도 미리 맞춰 두면 좋겠습니다. 출석만으로 교육을 마친 것으로 보지 않고, 각 참석자가 테스트 견적을 작성한 뒤 승인 요청까지 직접 제출하는 것을 완료 기준으로 두는 안입니다.",
+          "segment_ids": [
+            "S0031",
+            "S0032"
+          ]
+        },
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 1380,
+          "end": 1483,
+          "quote": "고은서: 그 기준에는 동의합니다. 다만 아직 실제 교육은 진행하지 않았습니다. 명단을 받은 다음 참석 대상을 정리할 생각이지만, 명단을 언제 드릴 수 있을지는 지금 확답하기 어렵습니다.",
+          "segment_ids": [
+            "S0033",
+            "S0034",
+            "S0035"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting19-f05"
+    },
+    {
+      "id": "meeting19-f06",
+      "claim": "영업 담당자는 6월 18일까지 계약서 수정본과 두 회차 교육안을 전달할 예정이며 ERP 연동은 보류 상태를 유지합니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 1940,
+          "end": 2094,
+          "quote": "영업 담당자: 두 자료는 6월 18일까지 전달할 예정입니다. 계약서 수정본은 자동 갱신 삭제 여부를 중심으로, 교육안은 두 회차 운영 내용을 중심으로 준비하겠습니다. 다만 현재 상태는 CRM이 시범을 통과했지만 계약 미체결이고, 교육은 운영안 검토와 승인 확인 전 단계입니다.",
+          "segment_ids": [
+            "S0047",
+            "S0048",
+            "S0049"
+          ]
+        },
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 1820,
+          "end": 1939,
+          "quote": "고은서: 그럼 필요한 자료는 자동 갱신을 삭제한 계약서 수정본과 두 회차 교육안입니다. 두 문서는 제가 각각 확인할 수 있게 보내 주세요. CRM 쪽은 계약 조항을, 교육 쪽은 회차와 운영 내용을 따로 보겠습니다.",
+          "segment_ids": [
+            "S0044",
+            "S0045",
+            "S0046"
+          ]
+        },
+        {
+          "path": "transcripts/meeting19.txt",
+          "start": 1717,
+          "end": 1819,
+          "quote": "영업 담당자: ERP 연동은 보류 상태를 유지하겠습니다. 지금 확인한 범위는 CRM 계약 조건과 교육 운영안이며, 연동에 대한 승인이나 진행 상태를 별도로 앞당겨 해석하지 않겠습니다.",
+          "segment_ids": [
+            "S0042",
+            "S0043"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting19-f06"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting19-f01",
+    "meeting19-f02",
+    "meeting19-f03",
+    "meeting19-f04",
+    "meeting19-f05",
+    "meeting19-f06"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

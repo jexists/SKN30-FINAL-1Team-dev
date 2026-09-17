@@ -1,0 +1,727 @@
+{
+  "transcript": "백도하: 오늘은 두 가지를 나눠서 보고 싶습니다. 사업장별 제안과 현장조사 승인 조건을 보는 프로젝트 영업 CRM 쪽에서는, 복수 대기 사유가 화면에 제대로 표시됐는지부터 확인하고 싶어요. 투자승인 대기와 현장 일정 대기가 한눈에 구분되지 않으면 담당자가 계속 다시 물어봐야 하니까요.\n영업 담당자: 그 부분은 수정이 끝났습니다. 복수 대기 사유가 표시되도록 화면을 보완했고, 관련된 6건도 다시 확인했습니다. 이제 고객 투자승인 대기와 현장 일정 대기가 각각 보이기 때문에, 어느 단계에서 멈춰 있는지 확인하기는 전보다 수월합니다. 다만 화면에서 지연 사유가 보이는 것과 실제 일정이 잡히는 것은 별개입니다.\n백도하: 그러면 투자위원회 일정까지 연결된 상태는 아니군요? 저희 쪽에서 날짜를 아직 못 받았는데, 시스템에 누락된 건 아닌지 걱정했습니다.\n영업 담당자: 네, 투자위원회 일정 자체는 아직 미정입니다. 이번 보완으로 대기 항목은 더 잘 드러나지만, 위원회 날짜가 정해지지 않은 상태를 바꾸지는 않습니다. 여섯 건을 재확인한 결과도 같은 상황으로 보시면 됩니다.\n백도하: 알겠습니다. 그럼 자료전환 지원 쪽으로 넘어가죠. 실제 사업장 도면을 넣기 전에 다운로드 통제가 되는지 검증한 결과가 궁금합니다. 관리자 외 사용자가 파일을 내려받을 수 있으면 반입 자체를 다시 검토해야 합니다.\n영업 담당자: 실자료를 넣기 전 가상도면으로 시험했습니다. 관리자 두 명 외에는 다운로드가 차단됐고, 누가 다운로드를 시도했는지 이력도 남는 것을 확인했습니다. 그래서 접근권한 검토와 다운로드 통제의 화면 동작은 확인된 상태입니다.\n백도하: 이력에는 차단된 시도도 남나요, 아니면 실제로 내려받은 경우만 남나요? 그리고 그 결과를 확인했다고 해서 실제 도면 반입이 바로 가능한 것으로 이해해도 될까요?\n영업 담당자: 이번 시험에서 다운로드 이력이 남는 것은 확인했지만, 이력의 세부 표시 범위까지 여기서 넓혀 말씀드리기는 어렵습니다. 중요한 점은 가상도면 시험 결과와 실제 자료 이전을 같은 것으로 볼 수 없다는 것입니다. 실제 자료 반입은 별도로 보안팀에 결과를 보냈고, 승인 문서는 아직 결재 중입니다.\n백도하: 네, 실제 자료는 아직 계속 반입하지 않고 있습니다. 승인 전에는 운영 도면이나 계약 관련 자료를 전달하지 않겠습니다. 보안 쪽 결재가 끝나야 다음 검토를 할 수 있어요.\n백도하: 프로젝트 CRM의 비용 조건도 다시 확인할게요. 사업팀은 다음 달 주요 프로젝트를 우선 관리해 보고 싶지만, 재무팀 결재는 아직 안 났어요. 현재 제안은 몇 명 기준이고 금액이 어떻게 되죠?\n영업 담당자: 현재 제안은 18명 기준이며 연 3,200만 원입니다. 이 조건은 재무 검토 중이고, 아직 계약이나 서명 단계로 넘어간 상태는 아닙니다. 사업팀이 우선 관리하려는 방향과 비용 검토는 함께 진행되고 있지만, 비용 승인이 먼저 필요합니다.\n백도하: 예산 심사일은 잡혔나요? 계약 시점과 함께 내부에 설명해야 해서, 대략적인 날짜라도 있으면 좋겠습니다.\n영업 담당자: 현재로서는 예산 심사일과 계약 일정 모두 확정되지 않았습니다. 재무팀이 제안을 검토하고 있는 상태라 날짜를 정해 말씀드리기는 어렵습니다. 재무 검토가 어디까지 진행됐는지와 별개로, 서명이 완료된 것은 아닙니다.\n백도하: 그 상태를 제가 6월 22일까지 확인해 보겠습니다. 보안 결재는 승인됐는지 여부만이 아니라 지금 어느 단계에 멈췄는지도 보고, 재무 검토도 같은 방식으로 확인해서 알려드릴게요.\n영업 담당자: 좋습니다. 6월 22일까지 보안 결재와 재무 검토 상태를 확인하시는 것으로 이해하겠습니다. 그때 승인 여부가 아직 나오지 않았더라도 현재 담당 단계와 멈춘 지점을 알려주시면, 화면에서 확인된 내용과 실제 자료 반입 상태를 나누어 살펴볼 수 있겠습니다.\n백도하: 네. 운영자료는 그때까지도 계속 반입하지 않겠습니다. 가상 자료로 확인할 수 있는 다운로드 제한과 이력 검증은 유지하고, 실제 도면과 계약 자료는 보안 결재가 끝난 뒤에야 다시 검토하겠습니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "95ca1cca3dc5225b0032e862fb04be67ee41e1b0edc67b7f1e44b5bfa3a17df1",
+    "selected_deal_ids": [
+      "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+      "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 27,
+          "text": "백도하: 오늘은 두 가지를 나눠서 보고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 28,
+          "end": 105,
+          "text": "사업장별 제안과 현장조사 승인 조건을 보는 프로젝트 영업 CRM 쪽에서는, 복수 대기 사유가 화면에 제대로 표시됐는지부터 확인하고 싶어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 106,
+          "end": 159,
+          "text": "투자승인 대기와 현장 일정 대기가 한눈에 구분되지 않으면 담당자가 계속 다시 물어봐야 하니까요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 160,
+          "end": 184,
+          "text": "영업 담당자: 그 부분은 수정이 끝났습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 185,
+          "end": 229,
+          "text": "복수 대기 사유가 표시되도록 화면을 보완했고, 관련된 6건도 다시 확인했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 230,
+          "end": 298,
+          "text": "이제 고객 투자승인 대기와 현장 일정 대기가 각각 보이기 때문에, 어느 단계에서 멈춰 있는지 확인하기는 전보다 수월합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 299,
+          "end": 341,
+          "text": "다만 화면에서 지연 사유가 보이는 것과 실제 일정이 잡히는 것은 별개입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 342,
+          "end": 375,
+          "text": "백도하: 그러면 투자위원회 일정까지 연결된 상태는 아니군요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 376,
+          "end": 420,
+          "text": "저희 쪽에서 날짜를 아직 못 받았는데, 시스템에 누락된 건 아닌지 걱정했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 421,
+          "end": 454,
+          "text": "영업 담당자: 네, 투자위원회 일정 자체는 아직 미정입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 455,
+          "end": 511,
+          "text": "이번 보완으로 대기 항목은 더 잘 드러나지만, 위원회 날짜가 정해지지 않은 상태를 바꾸지는 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 512,
+          "end": 543,
+          "text": "여섯 건을 재확인한 결과도 같은 상황으로 보시면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 544,
+          "end": 555,
+          "text": "백도하: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 556,
+          "end": 576,
+          "text": "그럼 자료전환 지원 쪽으로 넘어가죠."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 577,
+          "end": 621,
+          "text": "실제 사업장 도면을 넣기 전에 다운로드 통제가 되는지 검증한 결과가 궁금합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 622,
+          "end": 667,
+          "text": "관리자 외 사용자가 파일을 내려받을 수 있으면 반입 자체를 다시 검토해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 668,
+          "end": 700,
+          "text": "영업 담당자: 실자료를 넣기 전 가상도면으로 시험했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 701,
+          "end": 757,
+          "text": "관리자 두 명 외에는 다운로드가 차단됐고, 누가 다운로드를 시도했는지 이력도 남는 것을 확인했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 758,
+          "end": 797,
+          "text": "그래서 접근권한 검토와 다운로드 통제의 화면 동작은 확인된 상태입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 798,
+          "end": 842,
+          "text": "백도하: 이력에는 차단된 시도도 남나요, 아니면 실제로 내려받은 경우만 남나요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 843,
+          "end": 892,
+          "text": "그리고 그 결과를 확인했다고 해서 실제 도면 반입이 바로 가능한 것으로 이해해도 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 893,
+          "end": 966,
+          "text": "영업 담당자: 이번 시험에서 다운로드 이력이 남는 것은 확인했지만, 이력의 세부 표시 범위까지 여기서 넓혀 말씀드리기는 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 967,
+          "end": 1016,
+          "text": "중요한 점은 가상도면 시험 결과와 실제 자료 이전을 같은 것으로 볼 수 없다는 것입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 1017,
+          "end": 1063,
+          "text": "실제 자료 반입은 별도로 보안팀에 결과를 보냈고, 승인 문서는 아직 결재 중입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1064,
+          "end": 1098,
+          "text": "백도하: 네, 실제 자료는 아직 계속 반입하지 않고 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1099,
+          "end": 1135,
+          "text": "승인 전에는 운영 도면이나 계약 관련 자료를 전달하지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1136,
+          "end": 1164,
+          "text": "보안 쪽 결재가 끝나야 다음 검토를 할 수 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1165,
+          "end": 1196,
+          "text": "백도하: 프로젝트 CRM의 비용 조건도 다시 확인할게요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1197,
+          "end": 1248,
+          "text": "사업팀은 다음 달 주요 프로젝트를 우선 관리해 보고 싶지만, 재무팀 결재는 아직 안 났어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1249,
+          "end": 1276,
+          "text": "현재 제안은 몇 명 기준이고 금액이 어떻게 되죠?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1277,
+          "end": 1315,
+          "text": "영업 담당자: 현재 제안은 18명 기준이며 연 3,200만 원입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1316,
+          "end": 1361,
+          "text": "이 조건은 재무 검토 중이고, 아직 계약이나 서명 단계로 넘어간 상태는 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1362,
+          "end": 1416,
+          "text": "사업팀이 우선 관리하려는 방향과 비용 검토는 함께 진행되고 있지만, 비용 승인이 먼저 필요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1417,
+          "end": 1435,
+          "text": "백도하: 예산 심사일은 잡혔나요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1436,
+          "end": 1479,
+          "text": "계약 시점과 함께 내부에 설명해야 해서, 대략적인 날짜라도 있으면 좋겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1480,
+          "end": 1522,
+          "text": "영업 담당자: 현재로서는 예산 심사일과 계약 일정 모두 확정되지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1523,
+          "end": 1564,
+          "text": "재무팀이 제안을 검토하고 있는 상태라 날짜를 정해 말씀드리기는 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1565,
+          "end": 1605,
+          "text": "재무 검토가 어디까지 진행됐는지와 별개로, 서명이 완료된 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1606,
+          "end": 1639,
+          "text": "백도하: 그 상태를 제가 6월 22일까지 확인해 보겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1640,
+          "end": 1709,
+          "text": "보안 결재는 승인됐는지 여부만이 아니라 지금 어느 단계에 멈췄는지도 보고, 재무 검토도 같은 방식으로 확인해서 알려드릴게요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1710,
+          "end": 1723,
+          "text": "영업 담당자: 좋습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1724,
+          "end": 1768,
+          "text": "6월 22일까지 보안 결재와 재무 검토 상태를 확인하시는 것으로 이해하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 1769,
+          "end": 1858,
+          "text": "그때 승인 여부가 아직 나오지 않았더라도 현재 담당 단계와 멈춘 지점을 알려주시면, 화면에서 확인된 내용과 실제 자료 반입 상태를 나누어 살펴볼 수 있겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 1859,
+          "end": 1866,
+          "text": "백도하: 네."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 1867,
+          "end": 1893,
+          "text": "운영자료는 그때까지도 계속 반입하지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 1894,
+          "end": 1971,
+          "text": "가상 자료로 확인할 수 있는 다운로드 제한과 이력 검증은 유지하고, 실제 도면과 계약 자료는 보안 결재가 끝난 뒤에야 다시 검토하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-19T11:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "074cdde0-7af4-5165-971e-6a8dd39dfeb7",
+      "name": "해솔에너지(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "96d5d315-fc34-5435-ad3c-ac4b72104e65",
+      "name": "백도하(가상)"
+    },
+    "activity": {
+      "id": "093442a5-1731-5adb-88fc-35f06ce5bfda",
+      "starts_at": "2026-06-19T11:00:00+09:00",
+      "title": "복수 사유 보완과 다운로드 제한 검증"
+    },
+    "deals": [
+      {
+        "id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "company_id": "company08",
+        "contact_id": "contact08",
+        "title": "프로젝트 영업 CRM",
+        "description": "사업장별 제안·현장조사·승인 조건을 추적하는 프로젝트 CRM. 내부 검토와 외부 인허가를 분리.",
+        "deal_amount": 32000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "observed_state": "복수대기사유 표시 보완 필요"
+      },
+      {
+        "id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "company_id": "company08",
+        "contact_id": "contact08",
+        "title": "보안·자료전환 지원",
+        "description": "사업장 도면과 계약 관련 자료의 접근권한 검토 및 초기 전환 지원.",
+        "deal_amount": 6000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "observed_state": "관리자2명 다운로드 조건 시험 대기"
+      }
+    ],
+    "previous_reports": [
+      {
+        "sales_deal_id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "report_date": "2026-06-05",
+        "body": "6개 프로젝트 중2건은 조사완료 후 고객 투자위원회 일정 대기이며 인허가 거절이 아닙니다. CRM18명·연3,200만 원은 검토범위이며 예산승인 전입니다. 검토프로젝트6건은조사완료2·일정협의2·초기제안2이며 계약완료건은없습니다. 동일고객의다른사업장은프로젝트·투자일정·접근조건을분리합니다. 투자위원회일정미정만확인됐으며 예산부족·기술부적합원인은미확인입니다.",
+        "submission_id": "996e1d8e-53cc-53fb-a957-54ad3f444e17"
+      },
+      {
+        "sales_deal_id": "b64a61e9-e961-5a35-b788-258dea5d9621",
+        "report_date": "2026-06-05",
+        "body": "일정연계는 요청일·고객확정 여부·변경사유를 구분해야 합니다. 미응답조사일정은담당확인업무로남기며 일괄재연락기한은미정입니다. 조사완료는현장확인·실제일자가필요하고 지난예정일만으로완료처리하지않습니다.",
+        "submission_id": "996e1d8e-53cc-53fb-a957-54ad3f444e17"
+      },
+      {
+        "sales_deal_id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "report_date": "2026-06-05",
+        "body": "실도면 반입은 미허용이며 보안검토 전 가상 사업장·단순배치 예시만 사용합니다. 가상파일다운로드권한시험은가능하지만 실도면반입은미승인입니다. 삭제요청절차·접근기록확인이필요하며 보관기간은보안팀결정전미정입니다.",
+        "submission_id": "996e1d8e-53cc-53fb-a957-54ad3f444e17"
+      },
+      {
+        "sales_deal_id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "report_date": "2026-06-12",
+        "body": "6건 중1건의 복수 대기사유 표시 보완이 필요합니다.",
+        "submission_id": "bb4b8fe4-2e4d-54c8-973e-b1526a351ab3"
+      },
+      {
+        "sales_deal_id": "b64a61e9-e961-5a35-b788-258dea5d9621",
+        "report_date": "2026-06-12",
+        "body": "미정 일정은 담당자 회신 전 비워 두며 사업장 식별번호로 일정 혼입을 방지해야 합니다.",
+        "submission_id": "bb4b8fe4-2e4d-54c8-973e-b1526a351ab3"
+      },
+      {
+        "sales_deal_id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "report_date": "2026-06-12",
+        "body": "관리자2명 다운로드·일반사용자 조회·이력확인 조건을 시험하기 전 실도면은 미제공입니다.",
+        "submission_id": "bb4b8fe4-2e4d-54c8-973e-b1526a351ab3"
+      }
+    ],
+    "trade_history": []
+  },
+  "attachments": []
+}

@@ -1,0 +1,127 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-06-15",
+  "period_start": null,
+  "period_end": null,
+  "sales_deal_id": null,
+  "template_snapshot": {
+    "fields": [
+      {
+        "id": "body",
+        "label": "본문"
+      }
+    ]
+  },
+  "content": {
+    "values": {}
+  },
+  "transcript": null,
+  "guidance": null,
+  "report_sources": {
+    "reports": [
+      {
+        "id": "76f48758-1d54-5213-99d9-e3271e8288c7",
+        "submission_id": "960438d9-a1f2-5e4a-ac19-af8d28349c8e",
+        "source_activity_id": "76f48758-1d54-5213-99d9-e3271e8288c7",
+        "report_date": "2026-06-15",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+        "title": "견적·고객관리 CRM",
+        "values": {
+          "body": "20건 시범의 회신 중앙값은 0.8일이고 승인 누락은 0건입니다. 시범은 통과했지만 자동 갱신 삭제 조항 검토가 남아 계약은 미체결입니다. 시간 단축의 전체 원인을 CRM으로 단정할 수 없으며 생산팀 응답 속도 영향도 확인이 필요합니다."
+        }
+      },
+      {
+        "id": "76f48758-1d54-5213-99d9-e3271e8288c7",
+        "submission_id": "960438d9-a1f2-5e4a-ac19-af8d28349c8e",
+        "source_activity_id": "76f48758-1d54-5213-99d9-e3271e8288c7",
+        "report_date": "2026-06-15",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "13dd181f-e6cb-5f24-a928-000973bf8313",
+        "title": "현장 영업 교육",
+        "values": {
+          "body": "교육은 두 회차 운영안 검토 단계이며 참석자·비용 승인은 미확정입니다. 교육 완료 기준은 테스트 견적 작성과 승인 요청 실습이며 실제 교육은 아직 진행하지 않았습니다."
+        }
+      },
+      {
+        "id": "46aade97-8d0a-54d7-a9bc-d6070c653eb6",
+        "submission_id": "caedcdc7-578b-57ec-bdb9-fbe6f6ec929c",
+        "source_activity_id": "46aade97-8d0a-54d7-a9bc-d6070c653eb6",
+        "report_date": "2026-06-15",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "title": "화주 고객관리",
+        "values": {
+          "body": "수정 견적은 수신됐지만 지점 인력 부족으로 시범 시작을 보류했고 시험 결과는 없습니다. 현재 보류의 직접 사유는 운영 인력이며 가격 거절·경쟁사 계약은 확인되지 않았습니다."
+        }
+      },
+      {
+        "id": "46aade97-8d0a-54d7-a9bc-d6070c653eb6",
+        "submission_id": "caedcdc7-578b-57ec-bdb9-fbe6f6ec929c",
+        "source_activity_id": "46aade97-8d0a-54d7-a9bc-d6070c653eb6",
+        "report_date": "2026-06-15",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef",
+        "title": "거점 담당자 교육",
+        "values": {
+          "body": "교육도 운영 담당자 미배정으로 보류하며 담당자2명 배정 가능 여부를 다음 주 확인합니다."
+        }
+      },
+      {
+        "id": "df1449cb-491f-59b1-befd-86b8fadd4e55",
+        "submission_id": "4595d4f8-3b7e-5704-baad-6b4c9ffe4448",
+        "source_activity_id": "df1449cb-491f-59b1-befd-86b8fadd4e55",
+        "report_date": "2026-06-15",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "6ca8c414-0109-5efa-b007-5d809037d282",
+        "title": "상담 통합 CRM",
+        "values": {
+          "body": "6월12일 수정본으로 비식별15건 모두 연결됐고 검색오류 수정은 완료됐습니다. 보안 설명서는 수신됐으나 담당자 일정으로 검토 대기이며 실데이터 반입은 아직 허용되지 않았습니다."
+        }
+      },
+      {
+        "id": "df1449cb-491f-59b1-befd-86b8fadd4e55",
+        "submission_id": "4595d4f8-3b7e-5704-baad-6b4c9ffe4448",
+        "source_activity_id": "df1449cb-491f-59b1-befd-86b8fadd4e55",
+        "report_date": "2026-06-15",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "34e4bfdc-0cc0-5ea3-984a-1067d59ea8b0",
+        "title": "주문·반품 연동",
+        "values": {
+          "body": "결제사 테스트 계정이 미발급이므로 지급 완료 연동 검증은 미완료입니다."
+        }
+      }
+    ],
+    "meetings": [
+      {
+        "activity_id": "76f48758-1d54-5213-99d9-e3271e8288c7",
+        "common_report": {
+          "body": "영업 담당자는 6월 18일까지 계약서 수정본과 두 회차 교육안을 전달할 예정이며 ERP 연동은 보류 상태를 유지합니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "46aade97-8d0a-54d7-a9bc-d6070c653eb6",
+        "common_report": {
+          "body": "도윤재는 6월 19일까지 담당자2명과 참여시간 배정 가능 여부를 확인할 예정입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "df1449cb-491f-59b1-befd-86b8fadd4e55",
+        "common_report": {
+          "body": "서이든은6월19일까지 보안 검토 재개와 테스트계정 발급 상태를 확인할 예정입니다."
+        },
+        "unassigned_report": null
+      }
+    ],
+    "activities": []
+  },
+  "attachments": []
+}

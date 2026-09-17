@@ -1,0 +1,163 @@
+{
+  "case_id": "meeting03",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting03-f01",
+      "claim": "상담 접수는 하루 평균150건이며 재문의는 신규 주문과 구분해야 합니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting03.txt",
+          "start": 238,
+          "end": 314,
+          "quote": "영업 담당자: 하루 평균 150건이라는 접수량은 그대로 보되, 동일 주문에서 발생한 재문의는 신규 주문으로 세지 않는 기준이 필요합니다.",
+          "segment_ids": [
+            "S0005"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting03-f01"
+    },
+    {
+      "id": "meeting03-f02",
+      "claim": "반품 접수·회수·검수·환불 요청·실제 지급을 분리하고 지급 완료는 결제사 응답으로 확인합니다.",
+      "sales_deal_id": "deal03-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting03.txt",
+          "start": 1957,
+          "end": 2010,
+          "quote": "영업 담당자: 반품 접수, 회수, 검수, 환불 요청, 실제 지급을 각각 분리해 표시해야 합니다.",
+          "segment_ids": [
+            "S0040"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting03-f02"
+    },
+    {
+      "id": "meeting03-f03",
+      "claim": "보안 승인 전 시범은 비식별 상담15건만 사용하며 실제 주소·결제정보 반입은 허용되지 않았습니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting03.txt",
+          "start": 1313,
+          "end": 1424,
+          "quote": "영업 담당자: 보안 승인은 아직 받지 못한 상태이므로, 승인 전 시범에서는 비식별 상담 15건만 사용합니다. 주문번호도 가상 값을 사용하고 실제 주소나 결제정보는 외부 시범 계정에 반입하지 않습니다.",
+          "segment_ids": [
+            "S0028",
+            "S0029"
+          ]
+        },
+        {
+          "path": "transcripts/meeting03.txt",
+          "start": 1523,
+          "end": 1582,
+          "quote": "영업 담당자: 검토 대상으로 상담 담당자 여덟 명을 잡았을 뿐, 시범 계정을 실제로 발급한 것은 아닙니다.",
+          "segment_ids": [
+            "S0032"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting03-f03"
+    },
+    {
+      "id": "meeting03-f04",
+      "claim": "시범 핵심은 이전 답변 검색이며 자동 답변 발송과 고객만족도 개선 확정은 범위 밖입니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting03.txt",
+          "start": 714,
+          "end": 763,
+          "quote": "영업 담당자: 이번 시범에서 중심으로 볼 부분이 바로 같은 주문의 이전 답변 검색입니다.",
+          "segment_ids": [
+            "S0014"
+          ]
+        },
+        {
+          "path": "transcripts/meeting03.txt",
+          "start": 910,
+          "end": 986,
+          "quote": "영업 담당자: 자동 답변 발송은 이번 요구 범위에 넣지 않습니다. 검색된 내용을 담당자가 읽고 확인한 뒤 최종적으로 발송하는 흐름입니다.",
+          "segment_ids": [
+            "S0018",
+            "S0019"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting03-f04"
+    },
+    {
+      "id": "meeting03-f05",
+      "claim": "한 주문에 복수 부분반품과 재전송이 가능해 주문금액 전체를 중복 환불하지 않아야 합니다.",
+      "sales_deal_id": "deal03-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting03.txt",
+          "start": 2441,
+          "end": 2570,
+          "quote": "영업 담당자: 그래서 한 주문에 복수의 부분반품이 발생할 수 있는 경우를 전제로 봐야 합니다. 반품 접수가 두 번 있을 수 있고, 동일한 접수가 다시 전송될 수도 있으므로 주문 전체 금액만 보고 처리하면 중복 환불 위험이 생깁니다.",
+          "segment_ids": [
+            "S0050",
+            "S0051"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting03-f05"
+    },
+    {
+      "id": "meeting03-f06",
+      "claim": "6월 5일까지 영업 담당자가 보관·권한 설명서와 부분반품 예시를 전달할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting03.txt",
+          "start": 3361,
+          "end": 3423,
+          "quote": "영업 담당자: 보관 위치와 접근 권한을 설명하는 자료, 그리고 부분반품 예시를 6월 5일까지 전달할 예정입니다.",
+          "segment_ids": [
+            "S0069"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting03-f06"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting03-f01",
+    "meeting03-f02",
+    "meeting03-f03",
+    "meeting03-f04",
+    "meeting03-f05",
+    "meeting03-f06"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

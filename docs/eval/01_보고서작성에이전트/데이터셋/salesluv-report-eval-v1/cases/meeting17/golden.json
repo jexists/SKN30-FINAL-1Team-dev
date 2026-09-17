@@ -1,0 +1,215 @@
+{
+  "case_id": "meeting17",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting17-f01",
+      "claim": "프로젝트1건은 고객 가동시간으로3일 연기,1건은 담당자 병가로 재조정 중이며 취소 통보는 없습니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 275,
+          "end": 318,
+          "quote": "고객 공장이 돌아가는 시간과 조사 시간이 겹쳐서 일정이 사흘 뒤로 밀렸습니다.",
+          "segment_ids": [
+            "S0010"
+          ]
+        },
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 419,
+          "end": 458,
+          "quote": "병가 때문에 재조정 중입니다. 아직 사업을 취소한다는 연락은 없었어요.",
+          "segment_ids": [
+            "S0013",
+            "S0014"
+          ]
+        },
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 2886,
+          "end": 2985,
+          "quote": "병가로 재조정 중인 건은 취소가 아니라 미정 상태로 두고, 담당자 회신 전에는 날짜를 입력하지 않겠습니다. 고객 가동시간 때문에 사흘 늦어진 건은 확정된 변경으로 구분하겠습니다.",
+          "segment_ids": [
+            "S0075",
+            "S0076"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting17-f01"
+    },
+    {
+      "id": "meeting17-f02",
+      "claim": "관리자2명 다운로드·일반사용자 조회·이력확인 조건을 시험하기 전 실도면은 미제공입니다.",
+      "sales_deal_id": "deal08-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 1954,
+          "end": 2007,
+          "quote": "도면 다운로드는 관리자 두 명에게만 허용하고, 일반 사용자는 화면에서 조회만 하게 하려 합니다.",
+          "segment_ids": [
+            "S0053"
+          ]
+        },
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 2157,
+          "end": 2174,
+          "quote": "내려받기 이력도 남아야 합니다.",
+          "segment_ids": [
+            "S0057"
+          ]
+        },
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 2680,
+          "end": 2711,
+          "quote": "현재는 문서 검토만 시작했고 도면 자료는 보류 중입니다.",
+          "segment_ids": [
+            "S0070"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting17-f02"
+    },
+    {
+      "id": "meeting17-f03",
+      "claim": "6건 중1건의 복수 대기사유 표시 보완이 필요합니다.",
+      "sales_deal_id": "deal08-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 1258,
+          "end": 1332,
+          "quote": "여섯 건 중 한 건은 두 가지 대기 사유가 동시에 있습니다. 화면에는 첫 번째 사유만 보여서, 나머지 조건이 사라진 것처럼 보였어요.",
+          "segment_ids": [
+            "S0035",
+            "S0036"
+          ]
+        },
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 1496,
+          "end": 1530,
+          "quote": "복수의 대기 사유를 동시에 확인하는 표시가 필요한 상황이네요.",
+          "segment_ids": [
+            "S0041"
+          ]
+        },
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 3254,
+          "end": 3287,
+          "quote": "프로젝트 화면에서는 한 건의 복수 대기 사유가 함께 보이는지",
+          "segment_ids": [
+            "S0083"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting17-f03"
+    },
+    {
+      "id": "meeting17-f04",
+      "claim": "미정 일정은 담당자 회신 전 비워 두며 사업장 식별번호로 일정 혼입을 방지해야 합니다.",
+      "sales_deal_id": "deal08-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 626,
+          "end": 679,
+          "quote": "현장 책임자가 답하기 전에는 날짜 칸을 비워 두고, 담당자 연락이 필요한 상태만 남겨야 합니다.",
+          "segment_ids": [
+            "S0019"
+          ]
+        },
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 821,
+          "end": 858,
+          "quote": "사업장 식별번호도 함께 표시해야 다른 사업장 날짜가 섞이지 않아요.",
+          "segment_ids": [
+            "S0024"
+          ]
+        },
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 3119,
+          "end": 3156,
+          "quote": "사업장 식별번호를 기준으로 혼입을 막는 조건을 각각 확인하겠습니다.",
+          "segment_ids": [
+            "S0079"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting17-f04"
+    },
+    {
+      "id": "meeting17-f05",
+      "claim": "6월15일까지 복수사유 표시와 관리자외 다운로드 차단 시험 결과를 요청합니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 3165,
+          "end": 3225,
+          "quote": "복수 사유 표시와 관리자 외 다운로드 차단 시험 결과는 6월 15일까지 받아야 다음 검토를 할 수 있습니다.",
+          "segment_ids": [
+            "S0081"
+          ]
+        },
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 3327,
+          "end": 3354,
+          "quote": "두 시험 결과를 6월 15일까지 전달드리겠습니다.",
+          "segment_ids": [
+            "S0084"
+          ]
+        },
+        {
+          "path": "transcripts/meeting17.txt",
+          "start": 2472,
+          "end": 2500,
+          "quote": "시험이 성공해도 실제 도면 이전은 별도 일정입니다.",
+          "segment_ids": [
+            "S0065"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting17-f05"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting17-f01",
+    "meeting17-f02",
+    "meeting17-f03",
+    "meeting17-f04",
+    "meeting17-f05"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

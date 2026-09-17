@@ -1,0 +1,186 @@
+{
+  "case_id": "meeting23",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting23-f01",
+      "claim": "가용100박스 수정은 확인됐으나 예약취소 갱신 검증과 운영사용 결정은 남아 있습니다.",
+      "sales_deal_id": "deal05-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting23.txt",
+          "start": 267,
+          "end": 405,
+          "quote": "영업 담당자: 네, 현재 확인된 것은 가용재고가 100박스로 표시된다는 점입니다. 그래서 수정된 화면 자체는 확인된 상태로 이해하고 있습니다. 다만 예약이 취소됐을 때 그 수량이 언제, 어떤 방식으로 갱신되는지는 별도 검증 항목으로 남아 있습니다.",
+          "segment_ids": [
+            "S0006",
+            "S0007",
+            "S0008"
+          ]
+        },
+        {
+          "path": "transcripts/meeting23.txt",
+          "start": 406,
+          "end": 534,
+          "quote": "장하람: 맞아요. 예약이 잡혀 있을 때는 판매 가능한 수량과 섞이지 않아야 하고, 예약이 취소되면 다시 반영되어야 합니다. 그 취소 이후 갱신 속도를 아직 시험하지 못했기 때문에, 현장 운영에 바로 적용할지는 결정하지 않았습니다.",
+          "segment_ids": [
+            "S0009",
+            "S0010",
+            "S0011"
+          ]
+        },
+        {
+          "path": "transcripts/meeting23.txt",
+          "start": 1046,
+          "end": 1171,
+          "quote": "영업 담당자: 네, 공급사 확인이 남아 있다는 점까지 포함해 아직 검증 단계입니다. 그러니 지금 확정할 수 있는 것은 가용재고 100박스 수정 확인이고, 예약취소 갱신과 운영 사용은 확인이 끝난 뒤 판단해야 하는 사안입니다.",
+          "segment_ids": [
+            "S0024",
+            "S0025"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting23-f01"
+    },
+    {
+      "id": "meeting23-f02",
+      "claim": "창고 장비 예산이 우선 배정되어 CRM 구매는 다음 달 재검토로 미뤄졌습니다.",
+      "sales_deal_id": "deal05-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting23.txt",
+          "start": 1437,
+          "end": 1539,
+          "quote": "장하람: 맞습니다. 기능이 부족해서 미루는 것은 아니에요. 이번 달에는 창고 장비 교체비가 먼저 배정됐습니다. 그래서 CRM 구매를 지금 진행하기보다는 다음 달에 다시 보려고 합니다.",
+          "segment_ids": [
+            "S0031",
+            "S0032",
+            "S0033",
+            "S0034"
+          ]
+        },
+        {
+          "path": "transcripts/meeting23.txt",
+          "start": 2182,
+          "end": 2310,
+          "quote": "장하람: 네, 재무팀 결재는 아직 나지 않았어요. 연 2,200만 원을 그대로 갈지 계정 수를 조정할지도 아직 이야기 중입니다. 이번 달 창고 장비 예산이 먼저 배정됐다는 것만 확실하고, CRM 조건은 다음 달에 다시 보겠습니다.",
+          "segment_ids": [
+            "S0050",
+            "S0051",
+            "S0052"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting23-f02"
+    },
+    {
+      "id": "meeting23-f03",
+      "claim": "유료 모바일교육은 신청하지 않고 로그인·승인단가·오프라인 표시 안내자료만 요청합니다.",
+      "sales_deal_id": "deal05-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting23.txt",
+          "start": 2647,
+          "end": 2760,
+          "quote": "장하람: 맞아요. 현장에서는 휴대전화로 단가를 확인하는 데 관심이 있습니다. 하지만 전체 도입 범위가 정해지기 전에 유료 모바일 교육을 신청하지는 않겠습니다. 아직 교육을 구매할 단계라고 보지는 않아요.",
+          "segment_ids": [
+            "S0060",
+            "S0061",
+            "S0062",
+            "S0063"
+          ]
+        },
+        {
+          "path": "transcripts/meeting23.txt",
+          "start": 2872,
+          "end": 2992,
+          "quote": "장하람: 네. 자료는 한 장이면 충분합니다. 로그인한 뒤 승인된 단가를 어떻게 조회하는지, 연결이 원활하지 않을 때 오프라인으로 어떻게 표시되는지를 세 단계로 보여 주면 외근자들이 먼저 보고 의견을 말할 수 있어요.",
+          "segment_ids": [
+            "S0066",
+            "S0067",
+            "S0068"
+          ]
+        },
+        {
+          "path": "transcripts/meeting23.txt",
+          "start": 3378,
+          "end": 3486,
+          "quote": "장하람: 네, 유료 신청은 하지 않습니다. 자료만 먼저 받아서 외근 담당자들에게 보여 주고, 실제로 어떤 부분에서 막히는지 의견을 모으고 싶습니다. 교육을 할지 여부는 그 뒤에 생각할 문제예요.",
+          "segment_ids": [
+            "S0076",
+            "S0077",
+            "S0078"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting23-f03"
+    },
+    {
+      "id": "meeting23-f04",
+      "claim": "6월19일까지 영업 담당자가 모바일 안내자료를 전달할 예정이며 사용자 의견 회수 기한은 미정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting23.txt",
+          "start": 3487,
+          "end": 3580,
+          "quote": "영업 담당자: 자료 전달 일정은 6월 19일까지로 맞추겠습니다. 안내 한 장을 그때까지 보내 드리고, 이후 현장에 보여 주는 대상은 외근자 세 명으로 이해하면 될까요?",
+          "segment_ids": [
+            "S0079",
+            "S0080"
+          ]
+        },
+        {
+          "path": "transcripts/meeting23.txt",
+          "start": 3581,
+          "end": 3691,
+          "quote": "장하람: 네, 6월 19일까지 보내 주세요. 제가 외근자 세 명에게 직접 보여 주겠습니다. 다만 배차 일정이 아직 나오지 않아서, 그 사람들이 언제까지 의견을 줘야 하는지는 지금 정할 수 없습니다.",
+          "segment_ids": [
+            "S0081",
+            "S0082",
+            "S0083"
+          ]
+        },
+        {
+          "path": "transcripts/meeting23.txt",
+          "start": 3912,
+          "end": 4031,
+          "quote": "영업 담당자: 그럼 모바일 쪽은 6월 19일까지 안내자료를 전달하는 예정만 있고, 사용자 의견을 받는 날짜는 아직 미정인 상태입니다. 그 사이에 유료 교육을 신청하거나 도입 범위를 정하는 것으로 보지는 않겠습니다.",
+          "segment_ids": [
+            "S0090",
+            "S0091"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting23-f04"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting23-f01",
+    "meeting23-f02",
+    "meeting23-f03",
+    "meeting23-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

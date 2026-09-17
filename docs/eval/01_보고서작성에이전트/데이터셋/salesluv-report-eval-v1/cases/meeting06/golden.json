@@ -1,0 +1,140 @@
+{
+  "case_id": "meeting06",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting06-f01",
+      "claim": "현장6팀·내근4명이 접수·배정·방문·수리·고객확인 이력을 공유하려고 합니다.",
+      "sales_deal_id": "deal06-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting06.txt",
+          "start": 474,
+          "end": 585,
+          "quote": "네. 현장6팀과 내근4명이 같은 이력을 봐야 합니다. 현장에서는 방문과 작업 내용을 남기고, 내근에서는 그 기록을 보고 고객에게 현재 상태를 설명하거나 아직 끝나지 않은 수리의 사유를 찾으려 합니다.",
+          "segment_ids": [
+            "S0011",
+            "S0012",
+            "S0013"
+          ]
+        },
+        {
+          "path": "transcripts/meeting06.txt",
+          "start": 310,
+          "end": 412,
+          "quote": "맞습니다. 접수 시점, 배정 대상, 실제 방문 여부, 수리 진행 여부, 마지막 고객 확인을 한 이력에서 이어서 보고 싶습니다. 한 단계만 보고 상태를 판단하는 방식은 피하려고 합니다.",
+          "segment_ids": [
+            "S0007",
+            "S0008",
+            "S0009"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting06-f01"
+    },
+    {
+      "id": "meeting06-f02",
+      "claim": "장비10건으로 설치일·계약별 보증조건 조회를 검토하며 보증 자동승인은 범위 밖입니다.",
+      "sales_deal_id": "deal06-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting06.txt",
+          "start": 1129,
+          "end": 1218,
+          "quote": "이번에는 실제 고객 장비가 아니라 비식별 장비 열 건으로 조회 연결을 검토하려고 합니다. 장비번호와 설치일, 계약별 보증조건이 조회되는 흐름을 확인하면 됩니다.",
+          "segment_ids": [
+            "S0025",
+            "S0026"
+          ]
+        },
+        {
+          "path": "transcripts/meeting06.txt",
+          "start": 1302,
+          "end": 1376,
+          "quote": "네. 보증조건을 찾아보는 데 필요한 정보는 확인하고 싶지만, 이번 범위에서 시스템이 고객 보증을 자동 승인하게 하려는 것은 아닙니다.",
+          "segment_ids": [
+            "S0028",
+            "S0029"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting06-f02"
+    },
+    {
+      "id": "meeting06-f03",
+      "claim": "CRM 연1,500만 원은 검토액이고 대표 예산승인이 필요합니다.",
+      "sales_deal_id": "deal06-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting06.txt",
+          "start": 1576,
+          "end": 1678,
+          "quote": "서비스 이력 CRM은 연간 1,500만 원을 검토하고 있습니다. 부가세는 별도이고, 아직 대표 예산 승인이 필요합니다. 운영팀이 먼저 사용성을 보고 그다음 예산을 판단하는 순서입니다.",
+          "segment_ids": [
+            "S0034",
+            "S0035",
+            "S0036"
+          ]
+        },
+        {
+          "path": "transcripts/meeting06.txt",
+          "start": 1754,
+          "end": 1849,
+          "quote": "저는 운영 실무 담당자라서 서명 권한은 없습니다. 화면을 보고 현장과 내근이 실제로 쓸 수 있는지 의견을 전달할 수는 있지만, 제가 계약이나 예산을 확정할 수는 없습니다.",
+          "segment_ids": [
+            "S0038",
+            "S0039"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting06-f03"
+    },
+    {
+      "id": "meeting06-f04",
+      "claim": "류온재는6월5일까지 장비10건·서비스6건을 제공하며 서비스2건은 방문 후 부품대기입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting06.txt",
+          "start": 1961,
+          "end": 2083,
+          "quote": "제가 6월 5일까지 비식별 장비 열 건과 서비스 이력 여섯 건을 가상값으로 보내겠습니다. 그중 두 건은 부품 대기라 방문만 한 상태로 넣겠습니다. 영업 담당자님은 내근 담당자가 미완료 사유를 찾는 화면을 준비해 주세요.",
+          "segment_ids": [
+            "S0041",
+            "S0042",
+            "S0043"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting06-f04"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting06-f01",
+    "meeting06-f02",
+    "meeting06-f03",
+    "meeting06-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

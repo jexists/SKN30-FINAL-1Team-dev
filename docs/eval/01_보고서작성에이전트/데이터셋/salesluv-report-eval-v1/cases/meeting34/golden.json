@@ -1,0 +1,148 @@
+{
+  "case_id": "meeting34",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting34-f01",
+      "claim": "수정제안은 수신됐으나 본사·점주 책임정책 미정으로 구매결정 보류이며 계약 미체결입니다.",
+      "sales_deal_id": "deal07-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting34.txt",
+          "start": 315,
+          "end": 416,
+          "quote": "민채원: 맞습니다. 링크 오류가 다시 난 것은 아닙니다. 재무본부장도 운영정책 초안을 먼저 보고 판단하자는 입장이라, 책임 범위가 정리되기 전에는 CRM 구매를 진행하기 어렵습니다.",
+          "segment_ids": [
+            "S0008",
+            "S0009",
+            "S0010"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting34-f01"
+    },
+    {
+      "id": "meeting34-f02",
+      "claim": "정산연동은 공개승인 책임·일정 미정으로 보류 유지입니다.",
+      "sales_deal_id": "deal07-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting34.txt",
+          "start": 592,
+          "end": 712,
+          "quote": "민채원: 정산내역 조회 연동도 필요성은 그대로입니다. 하지만 확정 정산본을 누가 승인해서 공개할지 정하지 않은 채 실자료를 연결할 수는 없습니다. 공개승인 책임과 진행 일정이 모두 미정이라 보류를 유지하고 있습니다.",
+          "segment_ids": [
+            "S0016",
+            "S0017",
+            "S0018"
+          ]
+        },
+        {
+          "path": "transcripts/meeting34.txt",
+          "start": 801,
+          "end": 914,
+          "quote": "민채원: 그렇습니다. 데이터 전달 기한도 아직 잡히지 않았습니다. 운영 책임을 먼저 정해야 하고, 다음 달 정책 회의에는 정산 담당자도 참여시키려 합니다. 다만 그 회의의 구체적인 일정은 아직 없습니다.",
+          "segment_ids": [
+            "S0020",
+            "S0021",
+            "S0022",
+            "S0023"
+          ]
+        },
+        {
+          "path": "transcripts/meeting34.txt",
+          "start": 1016,
+          "end": 1079,
+          "quote": "민채원: 네, 확정 정산본을 조회하는 업무의 책임부터 문서로 정해야 합니다. 일정도 그 이후에 정할 수 있습니다.",
+          "segment_ids": [
+            "S0026",
+            "S0027"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting34-f02"
+    },
+    {
+      "id": "meeting34-f03",
+      "claim": "교육 일정과 운영정책 회의일은 미정이며 민채원이 회의를 요청할 예정입니다.",
+      "sales_deal_id": "deal07-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting34.txt",
+          "start": 1343,
+          "end": 1425,
+          "quote": "민채원: 네. 제가 담당자를 정하는 회의를 요청할 예정이지만, 날짜를 확답받은 상태는 아닙니다. 교육 일정과 운영정책 회의일 모두 아직 미정입니다.",
+          "segment_ids": [
+            "S0034",
+            "S0035",
+            "S0036"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting34-f03"
+    },
+    {
+      "id": "meeting34-f04",
+      "claim": "다음달 선행과제는 입력·확인·공개승인 책임정책 결정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting34.txt",
+          "start": 1525,
+          "end": 1628,
+          "quote": "민채원: 맞습니다. 다음 달 선행과제는 재무본부장과 정보시스템팀이 본사 입력, 점주 확인, 확정 정산본 공개승인의 책임을 결정하는 것입니다. 그 전에는 운영 조건을 확정하기 어렵습니다.",
+          "segment_ids": [
+            "S0039",
+            "S0040",
+            "S0041"
+          ]
+        },
+        {
+          "path": "transcripts/meeting34.txt",
+          "start": 1728,
+          "end": 1797,
+          "quote": "민채원: 네, 링크 차단을 새 장애로 올릴 상황은 아닙니다. 정책이 정리되면 본사 열두 명 안의 계약을 다시 검토하겠습니다.",
+          "segment_ids": [
+            "S0044",
+            "S0045"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting34-f04"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting34-f01",
+    "meeting34-f02",
+    "meeting34-f03",
+    "meeting34-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [
+    {
+      "field": "due",
+      "owner": "민채원",
+      "expected": "미정 또는 확인 필요"
+    }
+  ],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

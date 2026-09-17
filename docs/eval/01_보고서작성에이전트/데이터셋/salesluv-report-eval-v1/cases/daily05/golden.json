@@ -1,0 +1,160 @@
+{
+  "case_id": "daily05",
+  "report_kind": "daily",
+  "facts": [
+    {
+      "id": "daily05-f01",
+      "claim": "12건 시범에서 제공된 담당자·연락일 누락은0건이며 연락일 미정2건은 미정으로 보존했습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "12건 시범에서 제공된 담당자·연락일 누락은0건이며 연락일 미정2건은 미정으로 보존했습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily05-f02",
+      "claim": "1,800만 원 예산 승인 요청은 제출됐지만 결재 중이며 계약은 미체결입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "1,800만 원 예산 승인 요청은 제출됐지만 결재 중이며 계약은 미체결입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily05-f03",
+      "claim": "교육은 신규4명·기존6명 실습안 검토의 별도 딜이며 발주는 아직 없습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "교육은 신규4명·기존6명 실습안 검토의 별도 딜이며 발주는 아직 없습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily05-f04",
+      "claim": "영업 담당자는6월12일까지10명·1,800만 원·7월1일 개시 예정 계약초안과 교육안을 전달할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[0].common_report.body",
+          "quote": "영업 담당자는6월12일까지10명·1,800만 원·7월1일 개시 예정 계약초안과 교육안을 전달할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily05-f05",
+      "claim": "단가표2버전을 수신했고 적용일 이전 주문 가격은 유지하며 변경품목은 승인 검토합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "단가표2버전을 수신했고 적용일 이전 주문 가격은 유지하며 변경품목은 승인 검토합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily05-f06",
+      "claim": "가용재고가 잘못140박스로 표시됐고 올바른 값은120-20=100박스입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "가용재고가 잘못140박스로 표시됐고 올바른 값은120-20=100박스입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily05-f07",
+      "claim": "CRM 단가8건은 검증됐고 재고 화면은 오류 수정 전 숨기기로 했습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "CRM 단가8건은 검증됐고 재고 화면은 오류 수정 전 숨기기로 했습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily05-f08",
+      "claim": "영업 담당자는6월12일까지100박스 계산 근거와 수정 화면·기준시각을 전달할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "영업 담당자는6월12일까지100박스 계산 근거와 수정 화면·기준시각을 전달할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily05-f09",
+      "claim": "서비스6건 사유는 조회됐으나 담당기사 변경1건의 표시 수정이 필요합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "서비스6건 사유는 조회됐으나 담당기사 변경1건의 표시 수정이 필요합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily05-f10",
+      "claim": "장비10건 중1건의 설치일이 원본대장에도 없어 확인이 필요합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "장비10건 중1건의 설치일이 원본대장에도 없어 확인이 필요합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily05-f11",
+      "claim": "30분 내 접수안내·배정안을 검토하며 수리완료 보장이나 야간지원 승인은 아닙니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[6].values.body",
+          "quote": "30분 내 접수안내·배정안을 검토하며 수리완료 보장이나 야간지원 승인은 아닙니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily05-f12",
+      "claim": "6월12일까지 영업 담당자는 기사표시 수정, 류온재는 설치일 원본문서 확인을 할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[2].common_report.body",
+          "quote": "6월12일까지 영업 담당자는 기사표시 수정, 류온재는 설치일 원본문서 확인을 할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "daily05-f01",
+    "daily05-f02",
+    "daily05-f03",
+    "daily05-f04",
+    "daily05-f05",
+    "daily05-f06",
+    "daily05-f07",
+    "daily05-f08",
+    "daily05-f09",
+    "daily05-f10",
+    "daily05-f11",
+    "daily05-f12"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "오늘 활동→거래처별 결과→미완료·문제→다음 업무. 원문 반복과 중복 집계를 피합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

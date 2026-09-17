@@ -1,0 +1,256 @@
+{
+  "case_id": "daily01",
+  "report_kind": "daily",
+  "facts": [
+    {
+      "id": "daily01-f01",
+      "claim": "생산지시가 아닌 견적 버전과 승인 이력 관리가 이번 검토 목적입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[0].common_report.body",
+          "quote": "생산지시가 아닌 견적 버전과 승인 이력 관리가 이번 검토 목적입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f02",
+      "claim": "견적 회신 중앙값은 2일이며 시범 운영 목표는 1일 이내입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "견적 회신 중앙값은 2일이며 시범 운영 목표는 1일 이내입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f03",
+      "claim": "초기 유료 사용자는 25명이 아니라 내부 영업 20명입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "초기 유료 사용자는 25명이 아니라 내부 영업 20명입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f04",
+      "claim": "CRM 검토 상한은 부가세 별도 연 2,400만 원이며 구매 승인은 나지 않았습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "CRM 검토 상한은 부가세 별도 연 2,400만 원이며 구매 승인은 나지 않았습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f05",
+      "claim": "ERP 연동 요구는 단가·유효기간 조회이며 원가 수정과 재고 차감은 범위 밖입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "ERP 연동 요구는 단가·유효기간 조회이며 원가 수정과 재고 차감은 범위 밖입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f06",
+      "claim": "ERP 테스트 자료 요청 담당자는 고은서이며 전달 기한은 미정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "ERP 테스트 자료 요청 담당자는 고은서이며 전달 기한은 미정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f07",
+      "claim": "고은서는 검토 담당자이며 영업본부장 검토와 재무 승인 단계가 남아 있습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "고은서는 검토 담당자이며 영업본부장 검토와 재무 승인 단계가 남아 있습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f08",
+      "claim": "영업 담당자는 6월 4일까지 20명 기준으로 CRM과 ERP 범위를 분리한 제안서를 발송할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[0].common_report.body",
+          "quote": "영업 담당자는 6월 4일까지 20명 기준으로 CRM과 ERP 범위를 분리한 제안서를 발송할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f09",
+      "claim": "화주 문의·회신 이력 통합이 목적이며 차량 추적·배차 교체는 범위 밖입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "화주 문의·회신 이력 통합이 목적이며 차량 추적·배차 교체는 범위 밖입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f10",
+      "claim": "초기 검토 대상은 세 거점의 영업·화주 응대 40명이며 기사 계정은 제외됩니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "초기 검토 대상은 세 거점의 영업·화주 응대 40명이며 기사 계정은 제외됩니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f11",
+      "claim": "연 3,000만 원은 승인 전 검토예산이며 회신시간의 현재 기준값은 아직 없습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "연 3,000만 원은 승인 전 검토예산이며 회신시간의 현재 기준값은 아직 없습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f12",
+      "claim": "WMS 출고 상태와 고객 인수 완료는 다르며 API 제공 여부는 미확정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "WMS 출고 상태와 고객 인수 완료는 다르며 API 제공 여부는 미확정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f13",
+      "claim": "비식별 테스트 주문 10건에 재전송 사례를 포함해 중복 집계를 확인합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "비식별 테스트 주문 10건에 재전송 사례를 포함해 중복 집계를 확인합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f14",
+      "claim": "도윤재는 6월 5일까지 문의 흐름 5건과 비식별 테스트 주문 10건을 제공할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "도윤재는 6월 5일까지 문의 흐름 5건과 비식별 테스트 주문 10건을 제공할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f15",
+      "claim": "상담 접수는 하루 평균150건이며 재문의는 신규 주문과 구분해야 합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "상담 접수는 하루 평균150건이며 재문의는 신규 주문과 구분해야 합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f16",
+      "claim": "반품 접수·회수·검수·환불 요청·실제 지급을 분리하고 지급 완료는 결제사 응답으로 확인합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "반품 접수·회수·검수·환불 요청·실제 지급을 분리하고 지급 완료는 결제사 응답으로 확인합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f17",
+      "claim": "보안 승인 전 시범은 비식별 상담15건만 사용하며 실제 주소·결제정보 반입은 허용되지 않았습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "보안 승인 전 시범은 비식별 상담15건만 사용하며 실제 주소·결제정보 반입은 허용되지 않았습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f18",
+      "claim": "시범 핵심은 이전 답변 검색이며 자동 답변 발송과 고객만족도 개선 확정은 범위 밖입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "시범 핵심은 이전 답변 검색이며 자동 답변 발송과 고객만족도 개선 확정은 범위 밖입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f19",
+      "claim": "한 주문에 복수 부분반품과 재전송이 가능해 주문금액 전체를 중복 환불하지 않아야 합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "한 주문에 복수 부분반품과 재전송이 가능해 주문금액 전체를 중복 환불하지 않아야 합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily01-f20",
+      "claim": "6월 5일까지 영업 담당자가 보관·권한 설명서와 부분반품 예시를 전달할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[2].common_report.body",
+          "quote": "6월 5일까지 영업 담당자가 보관·권한 설명서와 부분반품 예시를 전달할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "daily01-f01",
+    "daily01-f02",
+    "daily01-f03",
+    "daily01-f04",
+    "daily01-f05",
+    "daily01-f06",
+    "daily01-f07",
+    "daily01-f08",
+    "daily01-f09",
+    "daily01-f10",
+    "daily01-f11",
+    "daily01-f12",
+    "daily01-f13",
+    "daily01-f14",
+    "daily01-f15",
+    "daily01-f16",
+    "daily01-f17",
+    "daily01-f18",
+    "daily01-f19",
+    "daily01-f20"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "오늘 활동→거래처별 결과→미완료·문제→다음 업무. 원문 반복과 중복 집계를 피합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

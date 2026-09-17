@@ -1,0 +1,791 @@
+{
+  "transcript": "영업 담당자: 오늘 본사안 결정 보류 사유부터 확인하고 싶습니다. 6월 22일 전달드린 수정 제안은 받아 보셨지만, 아직 구매 결정이나 계약으로 이어지지는 않은 상태가 맞을까요?\n민채원: 네, 제안 자체는 수신했습니다. 다만 가맹점 지원 CRM을 운영할 때 본사가 어떤 내용을 입력할지, 점주가 무엇을 확인할지 책임을 정하지 못했습니다. 그래서 구매 결정은 보류 중이고, 이번 달 계약서 서명도 없었습니다.\n영업 담당자: 기능이나 링크 문제가 다시 발생해서 멈춘 것은 아니군요. 지금은 본사 입력 책임과 점주 확인 책임을 먼저 정해야 한다는 뜻으로 이해했습니다.\n민채원: 맞습니다. 링크 오류가 다시 난 것은 아닙니다. 재무본부장도 운영정책 초안을 먼저 보고 판단하자는 입장이라, 책임 범위가 정리되기 전에는 CRM 구매를 진행하기 어렵습니다.\n영업 담당자: 그렇다면 CRM에서 본사 승인사항을 공유하는 방식도 책임정책 안에서 함께 정해야겠네요. 초안이 나오기 전까지는 구매 여부가 열려 있는 상태로 보면 되겠습니까?\n민채원: 네. 본사와 점주 사이의 입력·확인 절차가 정해져야 다시 검토할 수 있습니다. 지금 단계에서 계약이 체결됐다고 보기는 어렵습니다.\n민채원: 정산내역 조회 연동도 필요성은 그대로입니다. 하지만 확정 정산본을 누가 승인해서 공개할지 정하지 않은 채 실자료를 연결할 수는 없습니다. 공개승인 책임과 진행 일정이 모두 미정이라 보류를 유지하고 있습니다.\n영업 담당자: 예상수수료와 확정정산액을 나누어 조회하는 연동이라도, 공개할 확정본의 승인자가 정해지지 않으면 실제 자료 연결은 진행하지 않는다는 말씀이시죠?\n민채원: 그렇습니다. 데이터 전달 기한도 아직 잡히지 않았습니다. 운영 책임을 먼저 정해야 하고, 다음 달 정책 회의에는 정산 담당자도 참여시키려 합니다. 다만 그 회의의 구체적인 일정은 아직 없습니다.\n영업 담당자: 정산 담당자가 참여하면 승인과 공개의 경계를 논의하기 수월하겠습니다. 일정이 정해지기 전에는 연동을 완료된 것으로 보거나 실자료를 받는 단계로 넘어가기는 어렵겠네요.\n민채원: 네, 확정 정산본을 조회하는 업무의 책임부터 문서로 정해야 합니다. 일정도 그 이후에 정할 수 있습니다.\n영업 담당자: 점주 이용 교육은 CRM이나 정산 연동의 책임정책과 별도로 일정부터 잡아 두면 될까요?\n민채원: 아직은 아닙니다. 점주와 본사 담당자에게 서로 다른 접근권한을 설명하는 교육이지만, 지금은 기능 설명보다 본사가 입력하고 점주가 확인하는 절차를 먼저 정해야 합니다. 그래서 사용자 교육 일정은 비워 두고 있습니다.\n영업 담당자: 교육에서 설명할 접근권한의 방향은 이해했습니다. 다만 운영정책 회의에서 담당자부터 정한 뒤 교육 일정을 논의해야 한다는 순서군요.\n민채원: 네. 제가 담당자를 정하는 회의를 요청할 예정이지만, 날짜를 확답받은 상태는 아닙니다. 교육 일정과 운영정책 회의일 모두 아직 미정입니다.\n영업 담당자: 다음 달에 우선 다룰 범위는 제품별 기능보다 입력·확인·공개승인의 책임정책으로 모아지는 것 같습니다. 재무본부장과 정보시스템팀이 함께 정하는 구조가 필요하겠네요.\n민채원: 맞습니다. 다음 달 선행과제는 재무본부장과 정보시스템팀이 본사 입력, 점주 확인, 확정 정산본 공개승인의 책임을 결정하는 것입니다. 그 전에는 운영 조건을 확정하기 어렵습니다.\n영업 담당자: 기술적인 링크 차단은 이미 해결된 상태이니, 같은 항목을 새로운 장애로 다룰 필요는 없다는 점도 확인하겠습니다. 지금의 핵심은 기술 문제가 아니라 운영정책이군요.\n민채원: 네, 링크 차단을 새 장애로 올릴 상황은 아닙니다. 정책이 정리되면 본사 열두 명 안의 계약을 다시 검토하겠습니다. 다만 현재는 책임정책과 회의 일정이 확정되지 않았으므로, 계약이나 교육이 진행된 것으로 보기는 어렵습니다.\n영업 담당자: 알겠습니다. 오늘은 CRM 구매 보류와 미체결 상태, 정산 연동의 공개승인 책임 및 일정 미정, 교육과 정책 회의 일정 미정을 각각 확인했습니다. 이후에는 먼저 책임정책을 정하는 논의가 필요하겠습니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "518389de154c13075038b71c21be4243a6211e7981016bae7123c54a167845e4",
+    "selected_deal_ids": [
+      "dac86e90-364f-5740-b590-ee2d705c0e50",
+      "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+      "9997f1de-d368-5518-a8e2-aa982fdb4158"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 36,
+          "text": "영업 담당자: 오늘 본사안 결정 보류 사유부터 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 37,
+          "end": 99,
+          "text": "6월 22일 전달드린 수정 제안은 받아 보셨지만, 아직 구매 결정이나 계약으로 이어지지는 않은 상태가 맞을까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 100,
+          "end": 122,
+          "text": "민채원: 네, 제안 자체는 수신했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 123,
+          "end": 188,
+          "text": "다만 가맹점 지원 CRM을 운영할 때 본사가 어떤 내용을 입력할지, 점주가 무엇을 확인할지 책임을 정하지 못했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 189,
+          "end": 227,
+          "text": "그래서 구매 결정은 보류 중이고, 이번 달 계약서 서명도 없었습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 228,
+          "end": 267,
+          "text": "영업 담당자: 기능이나 링크 문제가 다시 발생해서 멈춘 것은 아니군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 268,
+          "end": 314,
+          "text": "지금은 본사 입력 책임과 점주 확인 책임을 먼저 정해야 한다는 뜻으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 315,
+          "end": 325,
+          "text": "민채원: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 326,
+          "end": 346,
+          "text": "링크 오류가 다시 난 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 347,
+          "end": 416,
+          "text": "재무본부장도 운영정책 초안을 먼저 보고 판단하자는 입장이라, 책임 범위가 정리되기 전에는 CRM 구매를 진행하기 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 417,
+          "end": 473,
+          "text": "영업 담당자: 그렇다면 CRM에서 본사 승인사항을 공유하는 방식도 책임정책 안에서 함께 정해야겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 474,
+          "end": 513,
+          "text": "초안이 나오기 전까지는 구매 여부가 열려 있는 상태로 보면 되겠습니까?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 514,
+          "end": 521,
+          "text": "민채원: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 522,
+          "end": 562,
+          "text": "본사와 점주 사이의 입력·확인 절차가 정해져야 다시 검토할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 563,
+          "end": 591,
+          "text": "지금 단계에서 계약이 체결됐다고 보기는 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 592,
+          "end": 621,
+          "text": "민채원: 정산내역 조회 연동도 필요성은 그대로입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 622,
+          "end": 673,
+          "text": "하지만 확정 정산본을 누가 승인해서 공개할지 정하지 않은 채 실자료를 연결할 수는 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 674,
+          "end": 712,
+          "text": "공개승인 책임과 진행 일정이 모두 미정이라 보류를 유지하고 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 713,
+          "end": 800,
+          "text": "영업 담당자: 예상수수료와 확정정산액을 나누어 조회하는 연동이라도, 공개할 확정본의 승인자가 정해지지 않으면 실제 자료 연결은 진행하지 않는다는 말씀이시죠?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 801,
+          "end": 812,
+          "text": "민채원: 그렇습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 813,
+          "end": 837,
+          "text": "데이터 전달 기한도 아직 잡히지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 838,
+          "end": 887,
+          "text": "운영 책임을 먼저 정해야 하고, 다음 달 정책 회의에는 정산 담당자도 참여시키려 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 888,
+          "end": 914,
+          "text": "다만 그 회의의 구체적인 일정은 아직 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 915,
+          "end": 961,
+          "text": "영업 담당자: 정산 담당자가 참여하면 승인과 공개의 경계를 논의하기 수월하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 962,
+          "end": 1015,
+          "text": "일정이 정해지기 전에는 연동을 완료된 것으로 보거나 실자료를 받는 단계로 넘어가기는 어렵겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1016,
+          "end": 1058,
+          "text": "민채원: 네, 확정 정산본을 조회하는 업무의 책임부터 문서로 정해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1059,
+          "end": 1079,
+          "text": "일정도 그 이후에 정할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1080,
+          "end": 1136,
+          "text": "영업 담당자: 점주 이용 교육은 CRM이나 정산 연동의 책임정책과 별도로 일정부터 잡아 두면 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1137,
+          "end": 1151,
+          "text": "민채원: 아직은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1152,
+          "end": 1234,
+          "text": "점주와 본사 담당자에게 서로 다른 접근권한을 설명하는 교육이지만, 지금은 기능 설명보다 본사가 입력하고 점주가 확인하는 절차를 먼저 정해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1235,
+          "end": 1261,
+          "text": "그래서 사용자 교육 일정은 비워 두고 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1262,
+          "end": 1296,
+          "text": "영업 담당자: 교육에서 설명할 접근권한의 방향은 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1297,
+          "end": 1342,
+          "text": "다만 운영정책 회의에서 담당자부터 정한 뒤 교육 일정을 논의해야 한다는 순서군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1343,
+          "end": 1350,
+          "text": "민채원: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1351,
+          "end": 1396,
+          "text": "제가 담당자를 정하는 회의를 요청할 예정이지만, 날짜를 확답받은 상태는 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1397,
+          "end": 1425,
+          "text": "교육 일정과 운영정책 회의일 모두 아직 미정입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1426,
+          "end": 1490,
+          "text": "영업 담당자: 다음 달에 우선 다룰 범위는 제품별 기능보다 입력·확인·공개승인의 책임정책으로 모아지는 것 같습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1491,
+          "end": 1524,
+          "text": "재무본부장과 정보시스템팀이 함께 정하는 구조가 필요하겠네요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1525,
+          "end": 1535,
+          "text": "민채원: 맞습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1536,
+          "end": 1603,
+          "text": "다음 달 선행과제는 재무본부장과 정보시스템팀이 본사 입력, 점주 확인, 확정 정산본 공개승인의 책임을 결정하는 것입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1604,
+          "end": 1628,
+          "text": "그 전에는 운영 조건을 확정하기 어렵습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1629,
+          "end": 1699,
+          "text": "영업 담당자: 기술적인 링크 차단은 이미 해결된 상태이니, 같은 항목을 새로운 장애로 다룰 필요는 없다는 점도 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 1700,
+          "end": 1727,
+          "text": "지금의 핵심은 기술 문제가 아니라 운영정책이군요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 1728,
+          "end": 1761,
+          "text": "민채원: 네, 링크 차단을 새 장애로 올릴 상황은 아닙니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 1762,
+          "end": 1797,
+          "text": "정책이 정리되면 본사 열두 명 안의 계약을 다시 검토하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 1798,
+          "end": 1857,
+          "text": "다만 현재는 책임정책과 회의 일정이 확정되지 않았으므로, 계약이나 교육이 진행된 것으로 보기는 어렵습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 1858,
+          "end": 1872,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 1873,
+          "end": 1947,
+          "text": "오늘은 CRM 구매 보류와 미체결 상태, 정산 연동의 공개승인 책임 및 일정 미정, 교육과 정책 회의 일정 미정을 각각 확인했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 1948,
+          "end": 1978,
+          "text": "이후에는 먼저 책임정책을 정하는 논의가 필요하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+            "9997f1de-d368-5518-a8e2-aa982fdb4158"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-26T09:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "9d8838b8-9cf9-5760-a9aa-bb08255ef35b",
+      "name": "바른유통(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "b2f52be4-d1a7-5007-b5b2-5c7f772c5045",
+      "name": "민채원(가상)"
+    },
+    "activity": {
+      "id": "16d0a40d-11b1-5b51-b67b-82f9729b9857",
+      "starts_at": "2026-06-26T09:00:00+09:00",
+      "title": "본사안 결정 보류와 정책 승인 요청"
+    },
+    "deals": [
+      {
+        "id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "company_id": "company07",
+        "contact_id": "contact07",
+        "title": "가맹점 지원 CRM",
+        "description": "가맹점별 요청·공지 응답과 본사 승인사항을 공유하는 CRM.",
+        "deal_amount": 28000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "observed_state": "링크권한 보완;본사12명 축소안 견적요청"
+      },
+      {
+        "id": "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+        "company_id": "company07",
+        "contact_id": "contact07",
+        "title": "정산내역 조회 연동",
+        "description": "가맹점 정산 확정본을 조회하는 연동. 예상수수료와 확정정산액 분리.",
+        "deal_amount": 7500000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+        "observed_state": "권한 해결 전 보류"
+      },
+      {
+        "id": "9997f1de-d368-5518-a8e2-aa982fdb4158",
+        "company_id": "company07",
+        "contact_id": "contact07",
+        "title": "점주 이용 교육",
+        "description": "가맹점주와 본사 담당자에게 서로 다른 접근권한을 설명하는 교육.",
+        "deal_amount": 4000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "9997f1de-d368-5518-a8e2-aa982fdb4158",
+        "observed_state": "본사12명 안내안 검토;점주교육 미실시"
+      }
+    ],
+    "previous_reports": [
+      {
+        "sales_deal_id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "report_date": "2026-06-05",
+        "body": "본사12명·점주24명 접근을 분리하며 정보시스템팀과 재무본부장 승인이 필요합니다. 가상2점포의 상호접근 차단이 시범조건이며 연2,800만 원은 검토용 제안입니다.",
+        "submission_id": "a6ba4d45-6c0b-5f37-a224-9396be85f3ae"
+      },
+      {
+        "sales_deal_id": "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+        "report_date": "2026-06-05",
+        "body": "초기 정산연동은 확정본 조회이며 예상수수료·확정액·실제지급은 구분됩니다.",
+        "submission_id": "a6ba4d45-6c0b-5f37-a224-9396be85f3ae"
+      },
+      {
+        "sales_deal_id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "report_date": "2026-06-12",
+        "body": "목록 접근차단은 확인됐으나 공유링크가 다른점포 계정에서 열리는 문제가 발견됐습니다. 비활성화된가상계정1개의기존링크접근도차단하는시험을 요구합니다. 본사계정도담당2점포한정권한이필요하며 담당변경후이전권한회수를 검토합니다. 접근거절은자료삭제와구분해안내하되 타점포이름·금액을노출하지않아야합니다. 정보시스템팀은링크차단·가맹지원팀은담당변경을검토하고 구매결정은미확정입니다.",
+        "submission_id": "a867b045-11ee-507f-b37b-268f33d4b6b5"
+      },
+      {
+        "sales_deal_id": "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+        "report_date": "2026-06-12",
+        "body": "공유권한 문제 해결 전 정산자료 연결을 보류하며 실제정산자료는 미전달입니다. 정산문서교체는구버전폐기·신버전안내가필요하며 문서공개취소와지급취소는 다릅니다. 가상예상수수료100,000-판촉조정20,000=확정80,000원을조회예시로 사용합니다. 실정산전달은권한검토·공개책임자지정후가능하며 기한은미정입니다.",
+        "submission_id": "a867b045-11ee-507f-b37b-268f33d4b6b5"
+      },
+      {
+        "sales_deal_id": "9997f1de-d368-5518-a8e2-aa982fdb4158",
+        "report_date": "2026-06-12",
+        "body": "점주교육 일정·참석자는 미정이고 본사 권한검토 설명만 먼저 요청합니다. 교육설명은가상점포화면을사용하며 실제점주계정공유는원하지않습니다.",
+        "submission_id": "a867b045-11ee-507f-b37b-268f33d4b6b5"
+      },
+      {
+        "sales_deal_id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "report_date": "2026-06-19",
+        "body": "링크2종 차단은 확인됐으나 초기범위를 본사12명으로 축소하고 점주24명은 추후검토합니다. 범위축소는 점주 운영정책 미정이 원인이며 구매안은 아직 미결정입니다.",
+        "submission_id": "c450b11b-dd93-5e4c-8a1d-0f54455daf65"
+      },
+      {
+        "sales_deal_id": "9997f1de-d368-5518-a8e2-aa982fdb4158",
+        "report_date": "2026-06-19",
+        "body": "교육은 본사12명 대상안으로 재검토하며 점주교육은 미실시입니다.",
+        "submission_id": "c450b11b-dd93-5e4c-8a1d-0f54455daf65"
+      }
+    ],
+    "trade_history": []
+  },
+  "attachments": []
+}

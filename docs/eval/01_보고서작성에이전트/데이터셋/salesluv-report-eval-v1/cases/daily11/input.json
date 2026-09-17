@@ -1,0 +1,153 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-06-24",
+  "period_start": null,
+  "period_end": null,
+  "sales_deal_id": null,
+  "template_snapshot": {
+    "fields": [
+      {
+        "id": "body",
+        "label": "본문"
+      }
+    ]
+  },
+  "content": {
+    "values": {}
+  },
+  "transcript": null,
+  "guidance": null,
+  "report_sources": {
+    "reports": [
+      {
+        "id": "e3496453-1251-5637-8d52-a38440dcbd94",
+        "submission_id": "6e830575-7f64-593c-b329-2e0368748667",
+        "source_activity_id": "e3496453-1251-5637-8d52-a38440dcbd94",
+        "report_date": "2026-06-24",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "e87a886e-31a5-5620-860a-527d02055a31",
+        "title": "수강 상담 CRM",
+        "values": {
+          "body": "10명 운영계정 접근검증이6월22일 완료됐으며 지난주 계약의 이행이지 신규계약이 아닙니다. 문시우는6월26일까지 취소2건·인계1건의 개시 전 테스트 결과를 전달할 예정입니다."
+        }
+      },
+      {
+        "id": "e3496453-1251-5637-8d52-a38440dcbd94",
+        "submission_id": "6e830575-7f64-593c-b329-2e0368748667",
+        "source_activity_id": "e3496453-1251-5637-8d52-a38440dcbd94",
+        "report_date": "2026-06-24",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "33fdda96-b0ec-5ad0-99f3-192e905679a5",
+        "title": "상담사 실습 교육",
+        "values": {
+          "body": "교육은 미실시이며 일정·비용승인은 대기 중으로 계정접속 완료와 구분합니다."
+        }
+      },
+      {
+        "id": "44816f32-b110-5ff0-9888-1fdfb7b3d65e",
+        "submission_id": "74e572e7-386f-5def-b023-26c1e96e4314",
+        "source_activity_id": "44816f32-b110-5ff0-9888-1fdfb7b3d65e",
+        "report_date": "2026-06-24",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "788723af-dea7-5981-af8c-f268c44bdfa5",
+        "title": "거래처 주문 CRM",
+        "values": {
+          "body": "CRM16명 검토는 유지하나 예산승인·계약·발주 일정은 미정입니다."
+        }
+      },
+      {
+        "id": "44816f32-b110-5ff0-9888-1fdfb7b3d65e",
+        "submission_id": "74e572e7-386f-5def-b023-26c1e96e4314",
+        "source_activity_id": "44816f32-b110-5ff0-9888-1fdfb7b3d65e",
+        "report_date": "2026-06-24",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+        "title": "재고·유통기한 조회",
+        "values": {
+          "body": "예약취소 연동은 테스트시간 미확정으로 미검증이며 운영연결은 열지 않았습니다."
+        }
+      },
+      {
+        "id": "44816f32-b110-5ff0-9888-1fdfb7b3d65e",
+        "submission_id": "74e572e7-386f-5def-b023-26c1e96e4314",
+        "source_activity_id": "44816f32-b110-5ff0-9888-1fdfb7b3d65e",
+        "report_date": "2026-06-24",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "d5d69129-86e8-5deb-b330-3160ce2fbc8e",
+        "title": "모바일 영업 교육",
+        "values": {
+          "body": "안내자료 수신 후3명 의견을 받았고1명은 승인상태 글자 가독성 개선을 요청했습니다."
+        }
+      },
+      {
+        "id": "e352a722-12cd-572d-805e-2df67f3407b3",
+        "submission_id": "41f76127-419b-559e-a60f-64ff62f1953a",
+        "source_activity_id": "e352a722-12cd-572d-805e-2df67f3407b3",
+        "report_date": "2026-06-24",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "e5aeb77a-a489-5410-9ca2-9e1e0e15fc11",
+        "title": "서비스 이력 CRM",
+        "values": {
+          "body": "6월24일 CRM1,500만 원 계약 서명 완료,750만 원씩7월6일·10월6일 분납이며 입금은 미확인입니다."
+        }
+      },
+      {
+        "id": "e352a722-12cd-572d-805e-2df67f3407b3",
+        "submission_id": "41f76127-419b-559e-a60f-64ff62f1953a",
+        "source_activity_id": "e352a722-12cd-572d-805e-2df67f3407b3",
+        "report_date": "2026-06-24",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "cbef8e0a-62d2-5788-baa4-a0e736551385",
+        "title": "설치장비 대장 연동",
+        "values": {
+          "body": "장비대장 연동은 원본정리 전 보류하고 자료마감일은 미정입니다."
+        }
+      },
+      {
+        "id": "e352a722-12cd-572d-805e-2df67f3407b3",
+        "submission_id": "41f76127-419b-559e-a60f-64ff62f1953a",
+        "source_activity_id": "e352a722-12cd-572d-805e-2df67f3407b3",
+        "report_date": "2026-06-24",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "5ae442ff-37b5-5500-b802-813df54182d0",
+        "title": "장애 연락 운영지원",
+        "values": {
+          "body": "야간지원 예산은 미승인이고30분 접수목표와 실제 야간서비스 계약은 분리되어 있습니다."
+        }
+      }
+    ],
+    "meetings": [
+      {
+        "activity_id": "e3496453-1251-5637-8d52-a38440dcbd94",
+        "common_report": {
+          "body": "관리자에게 필요한 다음 결정은 교육비와 참석시간 확보이며 미확정 연동비는 계약금액에 합산하지 않습니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "44816f32-b110-5ff0-9888-1fdfb7b3d65e",
+        "common_report": {
+          "body": "다음 달 우선과제는 CRM 예산검토·창고테스트 지원이며6월26일까지 승인상태 확대 화면 예시를 요청합니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "e352a722-12cd-572d-805e-2df67f3407b3",
+        "common_report": {
+          "body": "류온재는6월26일까지 연락·권한목록,영업 담당자는6월29일까지 역할별 접근검증을 할 예정입니다."
+        },
+        "unassigned_report": null
+      }
+    ],
+    "activities": []
+  },
+  "attachments": []
+}

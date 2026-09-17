@@ -1,0 +1,163 @@
+{
+  "case_id": "meeting20",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting20-f01",
+      "claim": "수정 견적은 수신됐지만 지점 인력 부족으로 시범 시작을 보류했고 시험 결과는 없습니다.",
+      "sales_deal_id": "deal02-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting20.txt",
+          "start": 141,
+          "end": 227,
+          "quote": "화주 고객관리 견적은 받았고 조건도 저희가 검토한 범위에서는 맞습니다. 다만 지점에서 실제로 운영할 사람을 빼기가 어려워서 시범 시작 자체를 보류했습니다.",
+          "segment_ids": [
+            "S0004",
+            "S0005"
+          ]
+        },
+        {
+          "path": "transcripts/meeting20.txt",
+          "start": 428,
+          "end": 510,
+          "quote": "아직 시험을 시작하지 않았으니 시험 결과도 없습니다. 제품 오류가 나서 실패한 것이 아니고, 성공률이나 회신시간 같은 결과를 말할 단계도 아닙니다.",
+          "segment_ids": [
+            "S0011",
+            "S0012"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting20-f01"
+    },
+    {
+      "id": "meeting20-f02",
+      "claim": "교육도 운영 담당자 미배정으로 보류하며 담당자2명 배정 가능 여부를 다음 주 확인합니다.",
+      "sales_deal_id": "deal02-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting20.txt",
+          "start": 765,
+          "end": 834,
+          "quote": "교육도 지금 바로 잡기는 어렵습니다. 교육을 받을 사람과 실제 운영자가 같은데, 어느 직원이 맡을지 아직 정하지 못했습니다.",
+          "segment_ids": [
+            "S0019",
+            "S0020"
+          ]
+        },
+        {
+          "path": "transcripts/meeting20.txt",
+          "start": 863,
+          "end": 890,
+          "quote": "거점 담당자 교육 계약도 함께 보류하고 싶습니다.",
+          "segment_ids": [
+            "S0021"
+          ]
+        },
+        {
+          "path": "transcripts/meeting20.txt",
+          "start": 1034,
+          "end": 1127,
+          "quote": "다만 아직 두 명이 배정된 것은 아닙니다. 지점장에게 가능한지 확인해 보고, 누가 맡는지와 주당 어느 정도 참여할 수 있는지도 받아야 교육 일정을 판단할 수 있습니다.",
+          "segment_ids": [
+            "S0025",
+            "S0026"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting20-f02"
+    },
+    {
+      "id": "meeting20-f03",
+      "claim": "현재 보류의 직접 사유는 운영 인력이며 가격 거절·경쟁사 계약은 확인되지 않았습니다.",
+      "sales_deal_id": "deal02-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting20.txt",
+          "start": 629,
+          "end": 692,
+          "quote": "예산 승인은 아직 남아 있습니다. 그렇지만 이번 주에 시작하지 못하는 직접 사유를 가격 문제로 보기는 어렵습니다.",
+          "segment_ids": [
+            "S0016",
+            "S0017"
+          ]
+        },
+        {
+          "path": "transcripts/meeting20.txt",
+          "start": 693,
+          "end": 759,
+          "quote": "가격 경쟁에서 졌다거나 다른 업체와 계약했다는 연락은 없었고, 대체 제품을 최종 선정했다는 얘기도 받은 적이 없습니다.",
+          "segment_ids": [
+            "S0018"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting20-f03"
+    },
+    {
+      "id": "meeting20-f04",
+      "claim": "도윤재는 6월 19일까지 담당자2명과 참여시간 배정 가능 여부를 확인할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting20.txt",
+          "start": 1286,
+          "end": 1319,
+          "quote": "그렇습니다. 제가 6월 19일까지 지점장에게 확인하겠습니다.",
+          "segment_ids": [
+            "S0030",
+            "S0031"
+          ]
+        },
+        {
+          "path": "transcripts/meeting20.txt",
+          "start": 1490,
+          "end": 1520,
+          "quote": "지금은 유료 활성화 없이 견적 유효기간만 알려 주세요.",
+          "segment_ids": [
+            "S0037"
+          ]
+        },
+        {
+          "path": "transcripts/meeting20.txt",
+          "start": 1320,
+          "end": 1373,
+          "quote": "회신이 없으면 일정은 계속 미정으로 두어야 합니다. 배정이 완료되었다고 미리 보기는 어렵습니다.",
+          "segment_ids": [
+            "S0032",
+            "S0033"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting20-f04"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting20-f01",
+    "meeting20-f02",
+    "meeting20-f03",
+    "meeting20-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

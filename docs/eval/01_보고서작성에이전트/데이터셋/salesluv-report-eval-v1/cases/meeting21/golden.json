@@ -1,0 +1,134 @@
+{
+  "case_id": "meeting21",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting21-f01",
+      "claim": "6월12일 수정본으로 비식별15건 모두 연결됐고 검색오류 수정은 완료됐습니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting21.txt",
+          "start": 129,
+          "end": 201,
+          "quote": "영업 담당자: 네, 상담 통합 CRM에서 6월 12일 수정본으로 비식별 데이터 15건의 연결과 검색 오류 수정을 확인한 결과군요.",
+          "segment_ids": [
+            "S0004"
+          ]
+        },
+        {
+          "path": "transcripts/meeting21.txt",
+          "start": 1323,
+          "end": 1397,
+          "quote": "영업 담당자: 현재 상담 통합 CRM은 비식별 15건 연결과 검색 오류 수정이 완료됐고, 보안 검토와 실데이터 반입은 대기 중입니다.",
+          "segment_ids": [
+            "S0031"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting21-f01"
+    },
+    {
+      "id": "meeting21-f02",
+      "claim": "보안 설명서는 수신됐으나 담당자 일정으로 검토 대기이며 실데이터 반입은 아직 허용되지 않았습니다.",
+      "sales_deal_id": "deal03-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting21.txt",
+          "start": 382,
+          "end": 437,
+          "quote": "영업 담당자: 설명서는 수신됐지만 보안 검토는 대기 중이고, 실데이터 반입은 계속 제한된 상태군요.",
+          "segment_ids": [
+            "S0009"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting21-f02"
+    },
+    {
+      "id": "meeting21-f03",
+      "claim": "결제사 테스트 계정이 미발급이므로 지급 완료 연동 검증은 미완료입니다.",
+      "sales_deal_id": "deal03-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting21.txt",
+          "start": 709,
+          "end": 852,
+          "quote": "서이든: 결제사 테스트 계정은 신청만 해 둔 상태고 아직 발급되지 않았습니다. 그래서 주문과 반품 이력 연결 화면은 볼 수 있어도, 지급 완료 연동은 아직 검증하지 못했습니다. 테스트 계정이 없는데 운영 계정을 사용해서 실제 환불을 시험할 생각도 없습니다.",
+          "segment_ids": [
+            "S0018",
+            "S0019",
+            "S0020"
+          ]
+        },
+        {
+          "path": "transcripts/meeting21.txt",
+          "start": 853,
+          "end": 964,
+          "quote": "영업 담당자: 주문 상태와 반품 접수 이력 연결은 확인할 수 있지만, 테스트 계정이 발급되지 않은 현재는 지급 완료 응답 검증이 미완료인 상태군요. 환불 지급 확정은 결제 시스템에서 확인해야 하고요.",
+          "segment_ids": [
+            "S0021",
+            "S0022"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting21-f03"
+    },
+    {
+      "id": "meeting21-f04",
+      "claim": "서이든은6월19일까지 보안 검토 재개와 테스트계정 발급 상태를 확인할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting21.txt",
+          "start": 965,
+          "end": 1063,
+          "quote": "서이든: 제가 확인할 일도 두 가지 있습니다. 6월 19일까지 보안 담당자 쪽에서 검토를 다시 시작할 수 있는지 확인하고, 결제사 테스트 계정 발급 상태도 함께 알아보겠습니다.",
+          "segment_ids": [
+            "S0023",
+            "S0024"
+          ]
+        },
+        {
+          "path": "transcripts/meeting21.txt",
+          "start": 1101,
+          "end": 1220,
+          "quote": "영업 담당자: 6월 19일까지 보안 검토 재개 가능 여부와 테스트 계정 발급 상태를 확인하시는군요. 그 결과가 승인이나 계정 발급을 보장하는 것은 아니며, 답변 내용에 따라 다음 시험 범위를 판단할 수 있겠습니다.",
+          "segment_ids": [
+            "S0026",
+            "S0027"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting21-f04"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting21-f01",
+    "meeting21-f02",
+    "meeting21-f03",
+    "meeting21-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

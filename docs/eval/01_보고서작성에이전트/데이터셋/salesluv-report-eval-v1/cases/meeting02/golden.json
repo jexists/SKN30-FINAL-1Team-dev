@@ -1,0 +1,237 @@
+{
+  "case_id": "meeting02",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting02-f01",
+      "claim": "화주 문의·회신 이력 통합이 목적이며 차량 추적·배차 교체는 범위 밖입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 279,
+          "end": 311,
+          "quote": "그래서 화주별 문의와 회신 이력을 한곳에서 보고 싶습니다.",
+          "segment_ids": [
+            "S0006"
+          ]
+        },
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 469,
+          "end": 584,
+          "quote": "차량 위치 추적을 새로 만들자는 게 아닙니다. 배차와 차량 운행은 지금 쓰는 배차시스템을 기준으로 유지하고, 저희가 필요한 건 화주 문의에 누가 답했는지와 어떤 내용으로 회신했는지를 찾기 쉬워지는 것입니다.",
+          "segment_ids": [
+            "S0010",
+            "S0011"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting02-f01"
+    },
+    {
+      "id": "meeting02-f02",
+      "claim": "초기 검토 대상은 세 거점의 영업·화주 응대 40명이며 기사 계정은 제외됩니다.",
+      "sales_deal_id": "deal02-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 736,
+          "end": 814,
+          "quote": "세 거점의 영업과 화주 응대 담당자를 초기 검토 대상으로 보고 있습니다. 합치면 40명이고, 지입 기사 계정은 이번 대상에서 빼려고 합니다.",
+          "segment_ids": [
+            "S0014",
+            "S0015"
+          ]
+        },
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 815,
+          "end": 864,
+          "quote": "전 거점 도입이 이미 승인된 것은 아니어서, 우선 검토 범위를 그렇게 잡는 게 맞습니다.",
+          "segment_ids": [
+            "S0016"
+          ]
+        },
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 1101,
+          "end": 1146,
+          "quote": "화주별로 누가 어디까지 볼 수 있는지 접근 권한을 나누는 방안을 검토해야 합니다.",
+          "segment_ids": [
+            "S0022"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting02-f02"
+    },
+    {
+      "id": "meeting02-f03",
+      "claim": "연 3,000만 원은 승인 전 검토예산이며 회신시간의 현재 기준값은 아직 없습니다.",
+      "sales_deal_id": "deal02-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 1493,
+          "end": 1553,
+          "quote": "화주 고객관리 검토 예산으로 연 3,000만 원을 올려 두기는 했습니다. 다만 아직 승인 전 검토예산입니다.",
+          "segment_ids": [
+            "S0030",
+            "S0031"
+          ]
+        },
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 1711,
+          "end": 1758,
+          "quote": "현재 문의 기록이 여러 방식으로 섞여 있어서 평균이 몇 시간이라고 말할 수 없습니다.",
+          "segment_ids": [
+            "S0036"
+          ]
+        },
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 1759,
+          "end": 1817,
+          "quote": "이번 주에 고객 메일을 받은 시각과 첫 번째 실질 답변을 보낸 시각을 모아 먼저 기준을 만들 생각입니다.",
+          "segment_ids": [
+            "S0037"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting02-f03"
+    },
+    {
+      "id": "meeting02-f04",
+      "claim": "WMS 출고 상태와 고객 인수 완료는 다르며 API 제공 여부는 미확정입니다.",
+      "sales_deal_id": "deal02-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 2179,
+          "end": 2238,
+          "quote": "WMS에 출고시각은 있습니다. 하지만 창고에서 출고됐다고 해서 고객이 실제로 물건을 인수한 것은 아닙니다.",
+          "segment_ids": [
+            "S0046",
+            "S0047"
+          ]
+        },
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 2296,
+          "end": 2362,
+          "quote": "그러면 초기 연동에는 WMS의 출고 상태까지만 넣고, 배송 완료는 별도로 인수 확인이 들어온 경우에만 표시해야 합니다.",
+          "segment_ids": [
+            "S0049"
+          ]
+        },
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 2448,
+          "end": 2510,
+          "quote": "하루에 두 번 파일을 받을 수 있다는 이야기는 들었지만, API를 사용할 수 있는지는 아직 확인하지 못했습니다.",
+          "segment_ids": [
+            "S0053"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting02-f04"
+    },
+    {
+      "id": "meeting02-f05",
+      "claim": "비식별 테스트 주문 10건에 재전송 사례를 포함해 중복 집계를 확인합니다.",
+      "sales_deal_id": "deal02-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 2620,
+          "end": 2679,
+          "quote": "테스트는 상위 화주 두 곳의 주문으로 진행하면 됩니다. 비식별 처리한 테스트 주문 10건을 준비하겠습니다.",
+          "segment_ids": [
+            "S0056",
+            "S0057"
+          ]
+        },
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 2885,
+          "end": 2917,
+          "quote": "그리고 같은 주문이 재전송되는 사례도 반드시 넣어 주세요.",
+          "segment_ids": [
+            "S0062"
+          ]
+        },
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 2970,
+          "end": 3006,
+          "quote": "재전송 한 건을 별도 배송으로 중복 집계하는지 확인하고 싶습니다.",
+          "segment_ids": [
+            "S0064"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting02-f05"
+    },
+    {
+      "id": "meeting02-f06",
+      "claim": "도윤재는 6월 5일까지 문의 흐름 5건과 비식별 테스트 주문 10건을 제공할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 3382,
+          "end": 3445,
+          "quote": "제가 6월 5일까지 문의 다섯 건의 실제 처리 흐름을 정리하고, 비식별 테스트 주문 10건도 함께 제공하겠습니다.",
+          "segment_ids": [
+            "S0074"
+          ]
+        },
+        {
+          "path": "transcripts/meeting02.txt",
+          "start": 3446,
+          "end": 3490,
+          "quote": "오늘 자료를 주기로 이야기한 것은 맞지만, 아직 실제로 전달한 상태는 아닙니다.",
+          "segment_ids": [
+            "S0075"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting02-f06"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting02-f01",
+    "meeting02-f02",
+    "meeting02-f03",
+    "meeting02-f04",
+    "meeting02-f05",
+    "meeting02-f06"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-06-19",
+  "period_start": null,
+  "period_end": null,
+  "sales_deal_id": null,
+  "template_snapshot": {
+    "fields": [
+      {
+        "id": "body",
+        "label": "본문"
+      }
+    ]
+  },
+  "content": {
+    "values": {}
+  },
+  "transcript": null,
+  "guidance": null,
+  "report_sources": {
+    "reports": [
+      {
+        "id": "6fce529b-84cc-5f5e-b4c8-8b9c5e81a91c",
+        "submission_id": "c450b11b-dd93-5e4c-8a1d-0f54455daf65",
+        "source_activity_id": "6fce529b-84cc-5f5e-b4c8-8b9c5e81a91c",
+        "report_date": "2026-06-19",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "title": "가맹점 지원 CRM",
+        "values": {
+          "body": "링크2종 차단은 확인됐으나 초기범위를 본사12명으로 축소하고 점주24명은 추후검토합니다. 범위축소는 점주 운영정책 미정이 원인이며 구매안은 아직 미결정입니다."
+        }
+      },
+      {
+        "id": "6fce529b-84cc-5f5e-b4c8-8b9c5e81a91c",
+        "submission_id": "c450b11b-dd93-5e4c-8a1d-0f54455daf65",
+        "source_activity_id": "6fce529b-84cc-5f5e-b4c8-8b9c5e81a91c",
+        "report_date": "2026-06-19",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "9997f1de-d368-5518-a8e2-aa982fdb4158",
+        "title": "점주 이용 교육",
+        "values": {
+          "body": "교육은 본사12명 대상안으로 재검토하며 점주교육은 미실시입니다."
+        }
+      },
+      {
+        "id": "093442a5-1731-5adb-88fc-35f06ce5bfda",
+        "submission_id": "0278ae95-28d7-5562-aa0e-2521aa0ddd12",
+        "source_activity_id": "093442a5-1731-5adb-88fc-35f06ce5bfda",
+        "report_date": "2026-06-19",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "title": "프로젝트 영업 CRM",
+        "values": {
+          "body": "복수대기사유 표시 수정과6건 재확인이 완료됐으나 고객 투자위원회 일정은 미정입니다. 18명·연3,200만 원 제안은 재무검토 중이며 계약과 예산심사일은 미확정입니다."
+        }
+      },
+      {
+        "id": "093442a5-1731-5adb-88fc-35f06ce5bfda",
+        "submission_id": "0278ae95-28d7-5562-aa0e-2521aa0ddd12",
+        "source_activity_id": "093442a5-1731-5adb-88fc-35f06ce5bfda",
+        "report_date": "2026-06-19",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "title": "보안·자료전환 지원",
+        "values": {
+          "body": "가상도면에서 관리자외 다운로드 차단·이력은 확인됐고 실자료 반입승인은 결재 중입니다."
+        }
+      },
+      {
+        "id": "ce7fa3b9-b3a0-584a-aa87-09bb4708184c",
+        "submission_id": "d290319e-8324-5a0d-8319-01c13398195e",
+        "source_activity_id": "ce7fa3b9-b3a0-584a-aa87-09bb4708184c",
+        "report_date": "2026-06-19",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "56e34430-ebf2-5b29-86bc-cca406076003",
+        "title": "제작 영업 CRM",
+        "values": {
+          "body": "월단위 해지요구를 충족하지 못해 이번 연간CRM 제안은 거절됐고 경쟁사 계약은 미확인입니다. CRM 시연계정 비활성화는 요청 단계이며 견적도구 예시는 별도로 유지합니다."
+        }
+      },
+      {
+        "id": "ce7fa3b9-b3a0-584a-aa87-09bb4708184c",
+        "submission_id": "d290319e-8324-5a0d-8319-01c13398195e",
+        "source_activity_id": "ce7fa3b9-b3a0-584a-aa87-09bb4708184c",
+        "report_date": "2026-06-19",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "fce17706-12aa-5c1c-bd6b-144a25b67526",
+        "title": "견적 버전 자동화",
+        "values": {
+          "body": "견적도구3건 분류수정은 확인됐고 독립사용 가능 여부를 별도 검토합니다."
+        }
+      }
+    ],
+    "meetings": [
+      {
+        "activity_id": "6fce529b-84cc-5f5e-b4c8-8b9c5e81a91c",
+        "common_report": {
+          "body": "6월22일까지 본사12명·점주추가 조건 분리 제안서를 요청합니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "093442a5-1731-5adb-88fc-35f06ce5bfda",
+        "common_report": {
+          "body": "백도하는6월22일까지 보안결재·재무검토 상태를 확인할 예정이며 운영자료는 계속 미반입입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "ce7fa3b9-b3a0-584a-aa87-09bb4708184c",
+        "common_report": {
+          "body": "6월22일까지 프로젝트코드 기반 독립사용·견적PDF 반출 가능 여부 답변을 요청합니다."
+        },
+        "unassigned_report": null
+      }
+    ],
+    "activities": []
+  },
+  "attachments": []
+}

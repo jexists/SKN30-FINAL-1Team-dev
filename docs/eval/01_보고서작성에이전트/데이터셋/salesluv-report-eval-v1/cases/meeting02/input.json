@@ -1,0 +1,1230 @@
+{
+  "transcript": "영업 담당자: 오늘은 화주 문의와 배차 업무를 어디까지 나눌지부터 맞춰 보겠습니다. 현재 말씀하신 화주 고객관리와 WMS 운송 연계가 서로 다른 역할을 하므로, 문의 이력을 모으는 일과 운송 상태를 가져오는 일을 구분해서 보겠습니다. 우선 도윤재님께서 생각하시는 가장 큰 불편부터 듣고 싶습니다.\n도윤재: 저희는 화주에게서 메일이 오면 영업이나 운영팀에 배차 여부를 다시 묻고, 창고 출고 목록도 따로 확인합니다. 답변을 보내는 것보다 오히려 누가 마지막으로 확인했는지를 찾는 데 시간이 걸립니다. 그래서 화주별 문의와 회신 이력을 한곳에서 보고 싶습니다.\n영업 담당자: 그렇다면 이 범위의 중심은 문의가 들어온 시점, 담당자가 확인한 내용, 회신한 이력을 화주별로 이어 보는 것이겠네요. 차량이 어디에 있는지 새로 추적하거나, 배차된 차량을 다른 차량으로 교체하는 기능을 추가하자는 의미는 아닌 것으로 이해했습니다.\n도윤재: 맞습니다. 차량 위치 추적을 새로 만들자는 게 아닙니다. 배차와 차량 운행은 지금 쓰는 배차시스템을 기준으로 유지하고, 저희가 필요한 건 화주 문의에 누가 답했는지와 어떤 내용으로 회신했는지를 찾기 쉬워지는 것입니다.\n영업 담당자: 그 기준이라면 화주 고객관리 쪽에서는 운송 계약 갱신 정보와 운임 문의를 화주 단위로 함께 관리할 수 있습니다. 다만 실제 배차 지시나 운행 처리는 기존 배차시스템에 남기고, 여기서는 그 문의와 회신의 맥락을 연결해 보는 방식으로 정리하겠습니다.\n도윤재: 세 거점의 영업과 화주 응대 담당자를 초기 검토 대상으로 보고 있습니다. 합치면 40명이고, 지입 기사 계정은 이번 대상에서 빼려고 합니다. 전 거점 도입이 이미 승인된 것은 아니어서, 우선 검토 범위를 그렇게 잡는 게 맞습니다.\n영업 담당자: 초기 검토 범위는 세 거점의 영업·화주 응대 담당자 40명이고, 기사 계정은 제외합니다. 같은 화주를 여러 거점이 상대할 때는 담당자 기록을 서로 볼 수 있어야 하지만, 기사 개인의 운행정보까지 모두 노출할 필요는 없다는 조건도 함께 반영합니다.\n도윤재: 네. 같은 화주가 다른 거점으로 문의했을 때 이전 회신을 다시 찾을 수 있어야 합니다. 그렇다고 모든 사람이 모든 화주 정보를 보는 방식은 곤란합니다. 화주별로 누가 어디까지 볼 수 있는지 접근 권한을 나누는 방안을 검토해야 합니다.\n영업 담당자: 권한은 화주 단위로 나누는 방향을 검토하되, 어느 거점과 어느 담당자에게 어떤 범위까지 허용할지는 아직 정해지지 않았습니다. 기사 계정과 개인별 운행정보는 초기 검토 대상이 아닙니다.\n도윤재: 그 부분은 저희 내부에서도 더 확인해야 합니다. 특히 세 거점이 공동으로 대응하는 화주가 있을 때, 문의 이력은 공유하되 필요 이상의 운행정보는 보이지 않아야 합니다. 전 거점 도입 승인까지 난 상태는 아니니, 권한안은 검토 조건으로 남겨 주세요.\n영업 담당자: 예산은 어느 정도로 보고 계신가요? 기능을 정하기 전에 승인 상태와 현재 응대 수준을 함께 구분해야 범위를 과하게 잡지 않을 수 있습니다.\n도윤재: 화주 고객관리 검토 예산으로 연 3,000만 원을 올려 두기는 했습니다. 다만 아직 승인 전 검토예산입니다. 승인됐다고 전제하거나 실제 집행 금액으로 말하면 안 됩니다.\n영업 담당자: 연 3,000만 원은 승인 전 검토예산으로만 보겠습니다. 또 이 시스템을 도입하면 회신시간이 몇 시간으로 줄어든다고 말하려면 현재 기준이 있어야 하는데, 지금은 그 기준값이 없는 상태인가요?\n도윤재: 네. 현재 문의 기록이 여러 방식으로 섞여 있어서 평균이 몇 시간이라고 말할 수 없습니다. 이번 주에 고객 메일을 받은 시각과 첫 번째 실질 답변을 보낸 시각을 모아 먼저 기준을 만들 생각입니다.\n영업 담당자: 자동 접수 안내가 나간 시각은 실제 답변으로 세지 않고, 사람이 문의 내용을 확인해 보낸 첫 실질 답변을 기준으로 삼는 것이군요. 현재는 회신시간 기준값이 없어 회신 성과를 숫자로 말할 수 없습니다.\n도윤재: 맞습니다. 자동으로 접수됐다는 안내만 보낸 경우는 답변으로 세지 않을 겁니다. 지금은 먼저 기록을 모으는 단계라서, 회신시간의 현재 기준값이 있다고 가정하면 안 됩니다.\n영업 담당자: 이제 WMS 운송 연계 쪽을 보겠습니다. 여기서는 출고 주문과 배송 상태를 읽어 화주 문의와 연결하는 것이 목적입니다. 다만 시작하기 전에 기존 WMS 계약에서 어떤 데이터 제공이 가능한지, 현재 계약 범위부터 확인해야 합니다.\n도윤재: WMS에 출고시각은 있습니다. 하지만 창고에서 출고됐다고 해서 고객이 실제로 물건을 인수한 것은 아닙니다. 출고 상태와 고객 인수 완료를 같은 상태로 표시하면 화주에게 잘못 안내할 수 있습니다.\n영업 담당자: 그러면 초기 연동에는 WMS의 출고 상태까지만 넣고, 배송 완료는 별도로 인수 확인이 들어온 경우에만 표시해야 합니다. 출고시각을 고객 인수 완료로 바꾸어 해석하지 않는 것이 핵심이겠네요.\n도윤재: 네. 배송 완료라는 표현은 실제 인수 확인이 들어왔을 때만 써야 합니다. 하루에 두 번 파일을 받을 수 있다는 이야기는 들었지만, API를 사용할 수 있는지는 아직 확인하지 못했습니다.\n영업 담당자: 하루에 두 번 파일을 받을 수 있다는 말은 있지만 API 제공 여부는 아직 확인되지 않았습니다. 기존 WMS 계약 범위를 확인하기 전에는 연동 방식을 확정할 수 없습니다.\n도윤재: 테스트는 상위 화주 두 곳의 주문으로 진행하면 됩니다. 비식별 처리한 테스트 주문 10건을 준비하겠습니다. 이름과 주소는 가상값으로 바꿀 것이고, 실제 수취인의 연락처는 제안 검토 자료에 보내지 않겠습니다.\n영업 담당자: 비식별 테스트 주문 10건이면 되고, 이름과 주소는 가상값으로 구성하는 조건이군요. 실제 수취인 연락처는 받지 않는 것으로 하겠습니다. 테스트 자료에는 두 화주의 주문이 포함되지만 개인을 알아볼 수 있는 정보는 넣지 않는 방향으로 보겠습니다.\n도윤재: 그리고 같은 주문이 재전송되는 사례도 반드시 넣어 주세요. 같은 주문이 다시 들어왔을 때 그것을 새 배송으로 세면 처리량이 부풀려져 보일 수 있습니다. 재전송 한 건을 별도 배송으로 중복 집계하는지 확인하고 싶습니다.\n영업 담당자: 재전송 사례를 포함해 중복 집계 여부를 확인하겠습니다. 같은 주문이 다시 전달됐을 때 새 배송으로 집계되는지, 기존 주문의 재전송으로 구분되는지 테스트 자료로 확인하겠습니다. 실제 연동 방식은 API 제공 여부를 확인한 뒤 판단해야 합니다.\n도윤재: 네, 그 순서가 맞습니다. 테스트 결과에서 출고 상태와 인수 확인이 섞이지 않는지도 같이 봐야 합니다. 재전송됐다는 이유만으로 배송이 하나 더 완료된 것처럼 보이면 안 됩니다.\n영업 담당자: 오늘 자료 준비 범위도 확인하고 싶습니다. 문의 처리 흐름과 테스트 주문을 어떤 방식으로 주실 수 있을까요? 파일로 받는 경우와 API로 연결하는 경우를 같은 기준에서 비교하려면 자료의 형태가 중요합니다.\n도윤재: 제가 6월 5일까지 문의 다섯 건의 실제 처리 흐름을 정리하고, 비식별 테스트 주문 10건도 함께 제공하겠습니다. 오늘 자료를 주기로 이야기한 것은 맞지만, 아직 실제로 전달한 상태는 아닙니다.\n영업 담당자: 6월 5일까지 문의 흐름 5건과 비식별 테스트 주문 10건을 제공할 예정이며, 오늘 현재 자료는 아직 전달되지 않았습니다. 자료를 받으면 파일 방식과 API 방식의 차이를 같은 기준에서 비교하되, API 가능 여부는 아직 확인되지 않은 상태로 보겠습니다.\n도윤재: 비교할 때 기능이 몇 개인지만 보여 주면 판단하기 어렵습니다. 운영팀이 문의 하나를 처리할 때 수작업으로 확인해야 하는 부분이 얼마나 남는지가 더 중요합니다. 문의 흐름 다섯 건도 그 관점에서 정리하겠습니다.\n영업 담당자: 알겠습니다. 문의 이력 통합은 화주 고객관리의 범위로, 출고 상태를 문의에 연결하는 일은 WMS 운송 연계의 범위로 나눠서 보겠습니다. 배차와 차량 운행은 기존 시스템에 두고, 기사 계정은 초기 검토에서 제외하며, 배송 완료는 인수 확인이 있을 때만 표시하는 조건까지 오늘 확인했습니다.\n도윤재: 저희도 그렇게 이해했습니다. 연 3,000만 원은 아직 승인 전 검토예산이고 회신시간 기준도 아직 없다는 점, API 제공 여부와 권한 범위도 확인이 더 필요하다는 점을 전제로 자료를 준비하겠습니다. 6월 5일까지 정리할 자료는 문의 다섯 건과 비식별 테스트 주문 10건입니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "1aea7e8033b620904b3a4ce88da61eba3d1f7ba1e01e0df9ccdfe38069bb9615",
+    "selected_deal_ids": [
+      "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+      "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 46,
+          "text": "영업 담당자: 오늘은 화주 문의와 배차 업무를 어디까지 나눌지부터 맞춰 보겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 47,
+          "end": 130,
+          "text": "현재 말씀하신 화주 고객관리와 WMS 운송 연계가 서로 다른 역할을 하므로, 문의 이력을 모으는 일과 운송 상태를 가져오는 일을 구분해서 보겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 131,
+          "end": 165,
+          "text": "우선 도윤재님께서 생각하시는 가장 큰 불편부터 듣고 싶습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 166,
+          "end": 231,
+          "text": "도윤재: 저희는 화주에게서 메일이 오면 영업이나 운영팀에 배차 여부를 다시 묻고, 창고 출고 목록도 따로 확인합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 232,
+          "end": 278,
+          "text": "답변을 보내는 것보다 오히려 누가 마지막으로 확인했는지를 찾는 데 시간이 걸립니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 279,
+          "end": 311,
+          "text": "그래서 화주별 문의와 회신 이력을 한곳에서 보고 싶습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 312,
+          "end": 385,
+          "text": "영업 담당자: 그렇다면 이 범위의 중심은 문의가 들어온 시점, 담당자가 확인한 내용, 회신한 이력을 화주별로 이어 보는 것이겠네요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 386,
+          "end": 457,
+          "text": "차량이 어디에 있는지 새로 추적하거나, 배차된 차량을 다른 차량으로 교체하는 기능을 추가하자는 의미는 아닌 것으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 458,
+          "end": 468,
+          "text": "도윤재: 맞습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 469,
+          "end": 494,
+          "text": "차량 위치 추적을 새로 만들자는 게 아닙니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 495,
+          "end": 584,
+          "text": "배차와 차량 운행은 지금 쓰는 배차시스템을 기준으로 유지하고, 저희가 필요한 건 화주 문의에 누가 답했는지와 어떤 내용으로 회신했는지를 찾기 쉬워지는 것입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 585,
+          "end": 655,
+          "text": "영업 담당자: 그 기준이라면 화주 고객관리 쪽에서는 운송 계약 갱신 정보와 운임 문의를 화주 단위로 함께 관리할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 656,
+          "end": 730,
+          "text": "다만 실제 배차 지시나 운행 처리는 기존 배차시스템에 남기고, 여기서는 그 문의와 회신의 맥락을 연결해 보는 방식으로 정리하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 731,
+          "end": 776,
+          "text": "도윤재: 세 거점의 영업과 화주 응대 담당자를 초기 검토 대상으로 보고 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 777,
+          "end": 814,
+          "text": "합치면 40명이고, 지입 기사 계정은 이번 대상에서 빼려고 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 815,
+          "end": 864,
+          "text": "전 거점 도입이 이미 승인된 것은 아니어서, 우선 검토 범위를 그렇게 잡는 게 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 865,
+          "end": 922,
+          "text": "영업 담당자: 초기 검토 범위는 세 거점의 영업·화주 응대 담당자 40명이고, 기사 계정은 제외합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 923,
+          "end": 1010,
+          "text": "같은 화주를 여러 거점이 상대할 때는 담당자 기록을 서로 볼 수 있어야 하지만, 기사 개인의 운행정보까지 모두 노출할 필요는 없다는 조건도 함께 반영합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 1011,
+          "end": 1018,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 1019,
+          "end": 1064,
+          "text": "같은 화주가 다른 거점으로 문의했을 때 이전 회신을 다시 찾을 수 있어야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 1065,
+          "end": 1100,
+          "text": "그렇다고 모든 사람이 모든 화주 정보를 보는 방식은 곤란합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 1101,
+          "end": 1146,
+          "text": "화주별로 누가 어디까지 볼 수 있는지 접근 권한을 나누는 방안을 검토해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 1147,
+          "end": 1224,
+          "text": "영업 담당자: 권한은 화주 단위로 나누는 방향을 검토하되, 어느 거점과 어느 담당자에게 어떤 범위까지 허용할지는 아직 정해지지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 1225,
+          "end": 1257,
+          "text": "기사 계정과 개인별 운행정보는 초기 검토 대상이 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1258,
+          "end": 1289,
+          "text": "도윤재: 그 부분은 저희 내부에서도 더 확인해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1290,
+          "end": 1356,
+          "text": "특히 세 거점이 공동으로 대응하는 화주가 있을 때, 문의 이력은 공유하되 필요 이상의 운행정보는 보이지 않아야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1357,
+          "end": 1401,
+          "text": "전 거점 도입 승인까지 난 상태는 아니니, 권한안은 검토 조건으로 남겨 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1402,
+          "end": 1429,
+          "text": "영업 담당자: 예산은 어느 정도로 보고 계신가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1430,
+          "end": 1487,
+          "text": "기능을 정하기 전에 승인 상태와 현재 응대 수준을 함께 구분해야 범위를 과하게 잡지 않을 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1488,
+          "end": 1533,
+          "text": "도윤재: 화주 고객관리 검토 예산으로 연 3,000만 원을 올려 두기는 했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1534,
+          "end": 1553,
+          "text": "다만 아직 승인 전 검토예산입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1554,
+          "end": 1587,
+          "text": "승인됐다고 전제하거나 실제 집행 금액으로 말하면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1588,
+          "end": 1627,
+          "text": "영업 담당자: 연 3,000만 원은 승인 전 검토예산으로만 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1628,
+          "end": 1702,
+          "text": "또 이 시스템을 도입하면 회신시간이 몇 시간으로 줄어든다고 말하려면 현재 기준이 있어야 하는데, 지금은 그 기준값이 없는 상태인가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1703,
+          "end": 1710,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1711,
+          "end": 1758,
+          "text": "현재 문의 기록이 여러 방식으로 섞여 있어서 평균이 몇 시간이라고 말할 수 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1759,
+          "end": 1817,
+          "text": "이번 주에 고객 메일을 받은 시각과 첫 번째 실질 답변을 보낸 시각을 모아 먼저 기준을 만들 생각입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1818,
+          "end": 1898,
+          "text": "영업 담당자: 자동 접수 안내가 나간 시각은 실제 답변으로 세지 않고, 사람이 문의 내용을 확인해 보낸 첫 실질 답변을 기준으로 삼는 것이군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1899,
+          "end": 1937,
+          "text": "현재는 회신시간 기준값이 없어 회신 성과를 숫자로 말할 수 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1938,
+          "end": 1948,
+          "text": "도윤재: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1949,
+          "end": 1986,
+          "text": "자동으로 접수됐다는 안내만 보낸 경우는 답변으로 세지 않을 겁니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1987,
+          "end": 2037,
+          "text": "지금은 먼저 기록을 모으는 단계라서, 회신시간의 현재 기준값이 있다고 가정하면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 2038,
+          "end": 2068,
+          "text": "영업 담당자: 이제 WMS 운송 연계 쪽을 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 2069,
+          "end": 2112,
+          "text": "여기서는 출고 주문과 배송 상태를 읽어 화주 문의와 연결하는 것이 목적입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 2113,
+          "end": 2173,
+          "text": "다만 시작하기 전에 기존 WMS 계약에서 어떤 데이터 제공이 가능한지, 현재 계약 범위부터 확인해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 2174,
+          "end": 2195,
+          "text": "도윤재: WMS에 출고시각은 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 2196,
+          "end": 2238,
+          "text": "하지만 창고에서 출고됐다고 해서 고객이 실제로 물건을 인수한 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 2239,
+          "end": 2287,
+          "text": "출고 상태와 고객 인수 완료를 같은 상태로 표시하면 화주에게 잘못 안내할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 2288,
+          "end": 2362,
+          "text": "영업 담당자: 그러면 초기 연동에는 WMS의 출고 상태까지만 넣고, 배송 완료는 별도로 인수 확인이 들어온 경우에만 표시해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0050",
+          "start": 2363,
+          "end": 2401,
+          "text": "출고시각을 고객 인수 완료로 바꾸어 해석하지 않는 것이 핵심이겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0051",
+          "start": 2402,
+          "end": 2409,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0052",
+          "start": 2410,
+          "end": 2447,
+          "text": "배송 완료라는 표현은 실제 인수 확인이 들어왔을 때만 써야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0053",
+          "start": 2448,
+          "end": 2510,
+          "text": "하루에 두 번 파일을 받을 수 있다는 이야기는 들었지만, API를 사용할 수 있는지는 아직 확인하지 못했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0054",
+          "start": 2511,
+          "end": 2572,
+          "text": "영업 담당자: 하루에 두 번 파일을 받을 수 있다는 말은 있지만 API 제공 여부는 아직 확인되지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0055",
+          "start": 2573,
+          "end": 2614,
+          "text": "기존 WMS 계약 범위를 확인하기 전에는 연동 방식을 확정할 수 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0056",
+          "start": 2615,
+          "end": 2650,
+          "text": "도윤재: 테스트는 상위 화주 두 곳의 주문으로 진행하면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0057",
+          "start": 2651,
+          "end": 2679,
+          "text": "비식별 처리한 테스트 주문 10건을 준비하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0058",
+          "start": 2680,
+          "end": 2735,
+          "text": "이름과 주소는 가상값으로 바꿀 것이고, 실제 수취인의 연락처는 제안 검토 자료에 보내지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0059",
+          "start": 2736,
+          "end": 2790,
+          "text": "영업 담당자: 비식별 테스트 주문 10건이면 되고, 이름과 주소는 가상값으로 구성하는 조건이군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0060",
+          "start": 2791,
+          "end": 2819,
+          "text": "실제 수취인 연락처는 받지 않는 것으로 하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0061",
+          "start": 2820,
+          "end": 2879,
+          "text": "테스트 자료에는 두 화주의 주문이 포함되지만 개인을 알아볼 수 있는 정보는 넣지 않는 방향으로 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0062",
+          "start": 2880,
+          "end": 2917,
+          "text": "도윤재: 그리고 같은 주문이 재전송되는 사례도 반드시 넣어 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0063",
+          "start": 2918,
+          "end": 2969,
+          "text": "같은 주문이 다시 들어왔을 때 그것을 새 배송으로 세면 처리량이 부풀려져 보일 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0064",
+          "start": 2970,
+          "end": 3006,
+          "text": "재전송 한 건을 별도 배송으로 중복 집계하는지 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0065",
+          "start": 3007,
+          "end": 3045,
+          "text": "영업 담당자: 재전송 사례를 포함해 중복 집계 여부를 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0066",
+          "start": 3046,
+          "end": 3112,
+          "text": "같은 주문이 다시 전달됐을 때 새 배송으로 집계되는지, 기존 주문의 재전송으로 구분되는지 테스트 자료로 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0067",
+          "start": 3113,
+          "end": 3149,
+          "text": "실제 연동 방식은 API 제공 여부를 확인한 뒤 판단해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0068",
+          "start": 3150,
+          "end": 3169,
+          "text": "도윤재: 네, 그 순서가 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0069",
+          "start": 3170,
+          "end": 3212,
+          "text": "테스트 결과에서 출고 상태와 인수 확인이 섞이지 않는지도 같이 봐야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0070",
+          "start": 3213,
+          "end": 3253,
+          "text": "재전송됐다는 이유만으로 배송이 하나 더 완료된 것처럼 보이면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0071",
+          "start": 3254,
+          "end": 3285,
+          "text": "영업 담당자: 오늘 자료 준비 범위도 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0072",
+          "start": 3286,
+          "end": 3322,
+          "text": "문의 처리 흐름과 테스트 주문을 어떤 방식으로 주실 수 있을까요?"
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0073",
+          "start": 3323,
+          "end": 3376,
+          "text": "파일로 받는 경우와 API로 연결하는 경우를 같은 기준에서 비교하려면 자료의 형태가 중요합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0074",
+          "start": 3377,
+          "end": 3445,
+          "text": "도윤재: 제가 6월 5일까지 문의 다섯 건의 실제 처리 흐름을 정리하고, 비식별 테스트 주문 10건도 함께 제공하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0075",
+          "start": 3446,
+          "end": 3490,
+          "text": "오늘 자료를 주기로 이야기한 것은 맞지만, 아직 실제로 전달한 상태는 아닙니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0076",
+          "start": 3491,
+          "end": 3567,
+          "text": "영업 담당자: 6월 5일까지 문의 흐름 5건과 비식별 테스트 주문 10건을 제공할 예정이며, 오늘 현재 자료는 아직 전달되지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0077",
+          "start": 3568,
+          "end": 3641,
+          "text": "자료를 받으면 파일 방식과 API 방식의 차이를 같은 기준에서 비교하되, API 가능 여부는 아직 확인되지 않은 상태로 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0078",
+          "start": 3642,
+          "end": 3681,
+          "text": "도윤재: 비교할 때 기능이 몇 개인지만 보여 주면 판단하기 어렵습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0079",
+          "start": 3682,
+          "end": 3735,
+          "text": "운영팀이 문의 하나를 처리할 때 수작업으로 확인해야 하는 부분이 얼마나 남는지가 더 중요합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0080",
+          "start": 3736,
+          "end": 3763,
+          "text": "문의 흐름 다섯 건도 그 관점에서 정리하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0081",
+          "start": 3764,
+          "end": 3778,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0082",
+          "start": 3779,
+          "end": 3847,
+          "text": "문의 이력 통합은 화주 고객관리의 범위로, 출고 상태를 문의에 연결하는 일은 WMS 운송 연계의 범위로 나눠서 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0083",
+          "start": 3848,
+          "end": 3932,
+          "text": "배차와 차량 운행은 기존 시스템에 두고, 기사 계정은 초기 검토에서 제외하며, 배송 완료는 인수 확인이 있을 때만 표시하는 조건까지 오늘 확인했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0084",
+          "start": 3933,
+          "end": 3953,
+          "text": "도윤재: 저희도 그렇게 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0085",
+          "start": 3954,
+          "end": 4049,
+          "text": "연 3,000만 원은 아직 승인 전 검토예산이고 회신시간 기준도 아직 없다는 점, API 제공 여부와 권한 범위도 확인이 더 필요하다는 점을 전제로 자료를 준비하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0086",
+          "start": 4050,
+          "end": 4093,
+          "text": "6월 5일까지 정리할 자료는 문의 다섯 건과 비식별 테스트 주문 10건입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "10a6f8f9-0362-5a51-ac53-ccd1b229fee0"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-01T11:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "41ffacdf-2121-5502-9566-ae328819655c",
+      "name": "나루물류(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "dd0adbab-6918-5dd7-b09d-c05f2fe893d8",
+      "name": "도윤재(가상)"
+    },
+    "activity": {
+      "id": "ea1734ad-2a1a-5baf-8e2b-cf2b4e495bd2",
+      "starts_at": "2026-06-01T11:00:00+09:00",
+      "title": "화주 문의와 배차 업무의 경계 합의"
+    },
+    "deals": [
+      {
+        "id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "company_id": "company02",
+        "contact_id": "contact02",
+        "title": "화주 고객관리",
+        "description": "화주별 운송 계약 갱신과 운임 문의를 통합하는 CRM. 배차·차량운행 자체는 기존 배차시스템 유지.",
+        "deal_amount": 30000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "observed_state": "도입 검토; 계약 없음"
+      },
+      {
+        "id": "10a6f8f9-0362-5a51-ac53-ccd1b229fee0",
+        "company_id": "company02",
+        "contact_id": "contact02",
+        "title": "WMS 운송 연계",
+        "description": "출고 주문과 배송 상태를 읽어 화주 문의에 연결하는 연동. 기존 WMS 계약 범위 확인이 선행 조건.",
+        "deal_amount": 12000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "10a6f8f9-0362-5a51-ac53-ccd1b229fee0",
+        "observed_state": "도입 검토; 계약 없음"
+      }
+    ],
+    "previous_reports": [],
+    "trade_history": []
+  },
+  "attachments": []
+}

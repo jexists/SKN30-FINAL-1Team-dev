@@ -1,0 +1,1066 @@
+{
+  "transcript": "영업 담당자: 오늘은 거래처 주문을 다루는 화면과 창고 재고를 조회하는 화면을 나누어 말씀드리겠습니다. 새결푸드에서 특히 헷갈리기 쉬운 가격 유효기간과 재고 용어를 각각 어떤 범위로 확인할지부터 맞춰 보죠.\n장하람: 네. 저희가 원하는 건 거래처가 주문할 때 보는 조건과 창고에 실제로 있는 수량을 한 화면에서 뒤섞는 게 아닙니다. 주문 쪽 정보와 재고 쪽 정보를 구분해서 확인하고 싶어요.\n영업 담당자: 그 구분이라면 주문 CRM은 식당이나 급식 거래처의 주문 조건, 상담 내용, 그리고 가격이 언제까지 유효한지를 관리하는 쪽으로 봅니다. 반면 창고의 실제 재고는 별도 시스템에서 조회하는 구조입니다.\n장하람: 현재는 단가표를 메신저로 받고 있습니다. 그러다 보니 그 가격이 아직 유효한지 먼저 확인해야 하고, 전날 받은 파일을 열어 주문을 받았다가 다시 전화를 거는 경우도 있어요.\n영업 담당자: 그렇다면 CRM에서 단가표와 유효기간을 함께 확인하는 흐름이 중요하겠습니다. 창고에 실제로 몇 박스가 남았는지는 재고 조회와 분리해서 보게 됩니다.\n장하람: 영업 인원이 같은 승인 단가표를 보고 주문 조건을 확인할 수 있으면 좋겠습니다. 지금처럼 사람마다 다른 파일을 들고 있는 상황은 피하고 싶어요.\n영업 담당자: 영업 16명은 CRM을 사용하고, 판매단가를 수정하는 권한은 팀장 2명에게만 두는 방향으로 이해했습니다.\n장하람: 맞습니다. 영업 16명은 같은 승인 단가표를 봐야 하지만, 판매단가를 직접 수정하는 사람은 팀장 2명으로 제한하려고 합니다. 이 숫자와 역할이 화면 권한에 반영되는지 보고 싶습니다.\n영업 담당자: 영업 사용자의 가격 조회와 팀장의 판매단가 수정은 서로 다른 권한으로 검토하겠습니다.\n장하람: 모바일에서도 확인할 수 있어야 합니다. 거래처와 통화하면서 사무실 컴퓨터를 바로 열 수 없는 경우가 있으니까요.\n영업 담당자: 모바일 조회와 함께, 통신이 끊겼을 때 마지막으로 확인한 단가의 시각도 표시하는 방식을 보시는 건가요?\n장하람: 네. 오프라인 상태라면 적어도 마지막 단가를 언제 확인했는지는 보여야 합니다. 다만 오래된 가격으로 주문을 확정하는 건 현장에서 막고 있어요. 단가가 현재 유효하다고 오해하지 않도록 확인시각이 필요합니다.\n영업 담당자: 통신이 끊긴 상황에서는 마지막 단가와 확인시각을 표시하되, 그것을 최신 가격으로 간주하지 않고 주문 확정 제한과 함께 검토하겠습니다.\n장하람: 가격 쪽은 아직 회사에서 최종적으로 결정한 금액이 아닙니다. 연 2,200만 원으로 검토 중이고, 부가세는 별도입니다. 아직 승인된 예산은 아닙니다.\n영업 담당자: 연 2,200만 원은 승인된 예산이 아니라 검토 중인 금액이며, 부가세는 별도인 조건으로 이해했습니다.\n장하람: 아직 승인된 예산이 아니므로, 지금은 검토예산으로 봐야 합니다. 모바일 확인과 오프라인에서의 마지막 단가 확인시각도 같은 범위에서 봐야 합니다.\n영업 담당자: 주문 CRM에서는 승인 단가표, 유효기간, 영업 16명과 팀장 2명의 권한, 모바일 조회, 오프라인 마지막 확인시각을 함께 검토하고 재고 수량은 섞지 않겠습니다.\n장하람: 재고는 실제 창고에 있는 수량을 기준으로 보되, 예약된 물량을 빼야 합니다. 실물은 120박스인데 다른 거래처가 예약한 게 20박스라서, 판매할 수 있는 수량은 100박스입니다.\n영업 담당자: 실물 120박스와 예약 20박스를 구분하고, 예약재고를 제외한 가용재고를 100박스로 조회하는 기준이군요.\n장하람: 맞아요. 거래처에 말할 수 있는 수량은 예약 물량을 빼고 봐야 합니다. 그렇다고 실물 수량 자체를 없애고 싶은 건 아니고, 두 숫자의 의미가 다르게 표시되기를 바랍니다.\n영업 담당자: 실물 총량과 판매에 사용할 수 있는 가용재고를 구분해 조회하겠습니다.\n장하람: 그리고 로트가 두 개입니다. 로트마다 유통기한이 달라서 수량만 보면 안 되고, 어느 로트의 기한이 언제인지 날짜도 함께 조회되어야 해요.\n영업 담당자: 두 로트의 수량과 각각의 유통기한을 함께 조회할 수 있어야 한다는 조건으로 이해했습니다.\n장하람: 네. 현재는 조회 화면을 검토하는 단계입니다. 주문을 넣으면 창고 수량이 자동으로 차감되는 기능까지 요청한 것은 아니에요.\n영업 담당자: 현재 범위는 창고시스템의 가용재고와 로트별 유통기한 조회, 예약재고의 구분이군요. 자동 차감까지는 요청하지 않으셨고요.\n장하람: 주문 CRM에서 거래처 주문을 받는다고 해서 그 순간 창고 수량을 자동으로 줄이는 것으로 이해하면 안 됩니다. 주문 조건과 창고 조회는 지금 단계에서는 따로 봐 주세요.\n영업 담당자: 주문 CRM에서는 거래처의 주문 조건과 상담, 가격 유효기간을 보고, 창고 수량과 로트별 기한은 재고 조회 연동에서 확인하는 것이군요.\n장하람: 테스트용 자료는 제가 준비하겠습니다. 6월 5일까지 테스트 주문 8건과 단가표 2버전을 보내 드릴 예정입니다. 거래처 이름은 가상명으로 바꾸겠습니다.\n영업 담당자: 확인했습니다. 6월 5일까지 테스트 주문 8건과 단가표 2버전을 보내 주시고, 거래처 이름은 가상명으로 제공하시는 일정입니다.\n장하람: 단가가 바뀌는 자정 전후의 주문을 각각 넣을게요. 그래야 어느 주문에 어느 버전의 단가가 적용됐는지 확인할 수 있을 것 같습니다.\n영업 담당자: 자정 전후 주문을 각각 포함한 테스트 자료를 기준으로, 주문별로 적용된 단가를 확인할 수 있는 화면 예시가 필요하다는 요청으로 이해했습니다.\n장하람: 제가 원하는 건 단순히 단가표 두 개를 나란히 보는 게 아닙니다. 주문을 열었을 때 적용된 단가가 어느 버전인지 확인할 수 있는 화면 예시가 필요합니다.\n영업 담당자: 자정 전후 주문에 어떤 단가가 적용됐는지 확인할 수 있는 화면 예시가 필요하다는 말씀이군요.\n장하람: 그리고 단가의 유효기간을 확인하지 않고 전날 파일만 보고 주문을 받는 일이 반복되지 않아야 합니다. 가격을 보는 화면과 주문에 적용된 가격을 확인하는 화면이 서로 어긋나면 안 돼요.\n영업 담당자: 승인 단가표와 유효기간을 확인하는 흐름을 주문 CRM에서 검토하고, 단가 수정은 팀장 2명만 가능하며 영업 16명은 같은 기준의 단가를 조회하도록 보겠습니다.\n장하람: 오늘 정리하면, 주문 쪽은 영업 16명과 팀장 2명의 권한을 나누고, 연 2,200만 원은 부가세 별도의 검토예산입니다. 모바일 조회와 오프라인 마지막 확인시각도 필요합니다.\n영업 담당자: 재고 쪽은 실물 120박스, 예약 20박스, 가용재고 100박스를 구분하며 로트별 유통기한을 조회합니다. 자동 차감은 요청하지 않은 상태로 두겠습니다.\n장하람: 제가 6월 5일까지 테스트 주문 8건과 단가표 2버전을 보내고, 자정 전후 주문도 포함하겠습니다. 그 자료를 바탕으로 적용 단가를 확인할 수 있는 화면 예시를 준비해 주세요.\n영업 담당자: 네. 예산은 아직 승인 전이고, 재고는 조회 단계이며, 주문 자료와 단가표를 받은 뒤 적용 단가 화면 예시를 확인하겠습니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "b3cbdfdec874b728a4aeb04e90d55a0f6913e061f0a27325d3c07c6efea46d3e",
+    "selected_deal_ids": [
+      "788723af-dea7-5981-af8c-f268c44bdfa5",
+      "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 57,
+          "text": "영업 담당자: 오늘은 거래처 주문을 다루는 화면과 창고 재고를 조회하는 화면을 나누어 말씀드리겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 58,
+          "end": 115,
+          "text": "새결푸드에서 특히 헷갈리기 쉬운 가격 유효기간과 재고 용어를 각각 어떤 범위로 확인할지부터 맞춰 보죠."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 116,
+          "end": 123,
+          "text": "장하람: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 124,
+          "end": 185,
+          "text": "저희가 원하는 건 거래처가 주문할 때 보는 조건과 창고에 실제로 있는 수량을 한 화면에서 뒤섞는 게 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 186,
+          "end": 218,
+          "text": "주문 쪽 정보와 재고 쪽 정보를 구분해서 확인하고 싶어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 219,
+          "end": 302,
+          "text": "영업 담당자: 그 구분이라면 주문 CRM은 식당이나 급식 거래처의 주문 조건, 상담 내용, 그리고 가격이 언제까지 유효한지를 관리하는 쪽으로 봅니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 303,
+          "end": 337,
+          "text": "반면 창고의 실제 재고는 별도 시스템에서 조회하는 구조입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 338,
+          "end": 365,
+          "text": "장하람: 현재는 단가표를 메신저로 받고 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 366,
+          "end": 439,
+          "text": "그러다 보니 그 가격이 아직 유효한지 먼저 확인해야 하고, 전날 받은 파일을 열어 주문을 받았다가 다시 전화를 거는 경우도 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 440,
+          "end": 490,
+          "text": "영업 담당자: 그렇다면 CRM에서 단가표와 유효기간을 함께 확인하는 흐름이 중요하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 491,
+          "end": 530,
+          "text": "창고에 실제로 몇 박스가 남았는지는 재고 조회와 분리해서 보게 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 531,
+          "end": 580,
+          "text": "장하람: 영업 인원이 같은 승인 단가표를 보고 주문 조건을 확인할 수 있으면 좋겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 581,
+          "end": 616,
+          "text": "지금처럼 사람마다 다른 파일을 들고 있는 상황은 피하고 싶어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 617,
+          "end": 683,
+          "text": "영업 담당자: 영업 16명은 CRM을 사용하고, 판매단가를 수정하는 권한은 팀장 2명에게만 두는 방향으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 684,
+          "end": 694,
+          "text": "장하람: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 695,
+          "end": 758,
+          "text": "영업 16명은 같은 승인 단가표를 봐야 하지만, 판매단가를 직접 수정하는 사람은 팀장 2명으로 제한하려고 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 759,
+          "end": 790,
+          "text": "이 숫자와 역할이 화면 권한에 반영되는지 보고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 791,
+          "end": 846,
+          "text": "영업 담당자: 영업 사용자의 가격 조회와 팀장의 판매단가 수정은 서로 다른 권한으로 검토하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 847,
+          "end": 873,
+          "text": "장하람: 모바일에서도 확인할 수 있어야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 874,
+          "end": 914,
+          "text": "거래처와 통화하면서 사무실 컴퓨터를 바로 열 수 없는 경우가 있으니까요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 915,
+          "end": 980,
+          "text": "영업 담당자: 모바일 조회와 함께, 통신이 끊겼을 때 마지막으로 확인한 단가의 시각도 표시하는 방식을 보시는 건가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 981,
+          "end": 988,
+          "text": "장하람: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 989,
+          "end": 1029,
+          "text": "오프라인 상태라면 적어도 마지막 단가를 언제 확인했는지는 보여야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 1030,
+          "end": 1065,
+          "text": "다만 오래된 가격으로 주문을 확정하는 건 현장에서 막고 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1066,
+          "end": 1100,
+          "text": "단가가 현재 유효하다고 오해하지 않도록 확인시각이 필요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1101,
+          "end": 1183,
+          "text": "영업 담당자: 통신이 끊긴 상황에서는 마지막 단가와 확인시각을 표시하되, 그것을 최신 가격으로 간주하지 않고 주문 확정 제한과 함께 검토하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1184,
+          "end": 1222,
+          "text": "장하람: 가격 쪽은 아직 회사에서 최종적으로 결정한 금액이 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1223,
+          "end": 1255,
+          "text": "연 2,200만 원으로 검토 중이고, 부가세는 별도입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1256,
+          "end": 1272,
+          "text": "아직 승인된 예산은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1273,
+          "end": 1338,
+          "text": "영업 담당자: 연 2,200만 원은 승인된 예산이 아니라 검토 중인 금액이며, 부가세는 별도인 조건으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1339,
+          "end": 1379,
+          "text": "장하람: 아직 승인된 예산이 아니므로, 지금은 검토예산으로 봐야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1380,
+          "end": 1424,
+          "text": "모바일 확인과 오프라인에서의 마지막 단가 확인시각도 같은 범위에서 봐야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1425,
+          "end": 1523,
+          "text": "영업 담당자: 주문 CRM에서는 승인 단가표, 유효기간, 영업 16명과 팀장 2명의 권한, 모바일 조회, 오프라인 마지막 확인시각을 함께 검토하고 재고 수량은 섞지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1524,
+          "end": 1571,
+          "text": "장하람: 재고는 실제 창고에 있는 수량을 기준으로 보되, 예약된 물량을 빼야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1572,
+          "end": 1628,
+          "text": "실물은 120박스인데 다른 거래처가 예약한 게 20박스라서, 판매할 수 있는 수량은 100박스입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1629,
+          "end": 1696,
+          "text": "영업 담당자: 실물 120박스와 예약 20박스를 구분하고, 예약재고를 제외한 가용재고를 100박스로 조회하는 기준이군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1697,
+          "end": 1706,
+          "text": "장하람: 맞아요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1707,
+          "end": 1741,
+          "text": "거래처에 말할 수 있는 수량은 예약 물량을 빼고 봐야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1742,
+          "end": 1796,
+          "text": "그렇다고 실물 수량 자체를 없애고 싶은 건 아니고, 두 숫자의 의미가 다르게 표시되기를 바랍니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1797,
+          "end": 1843,
+          "text": "영업 담당자: 실물 총량과 판매에 사용할 수 있는 가용재고를 구분해 조회하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1844,
+          "end": 1864,
+          "text": "장하람: 그리고 로트가 두 개입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1865,
+          "end": 1925,
+          "text": "로트마다 유통기한이 달라서 수량만 보면 안 되고, 어느 로트의 기한이 언제인지 날짜도 함께 조회되어야 해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 1926,
+          "end": 1983,
+          "text": "영업 담당자: 두 로트의 수량과 각각의 유통기한을 함께 조회할 수 있어야 한다는 조건으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 1984,
+          "end": 1991,
+          "text": "장하람: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 1992,
+          "end": 2014,
+          "text": "현재는 조회 화면을 검토하는 단계입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 2015,
+          "end": 2057,
+          "text": "주문을 넣으면 창고 수량이 자동으로 차감되는 기능까지 요청한 것은 아니에요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 2058,
+          "end": 2111,
+          "text": "영업 담당자: 현재 범위는 창고시스템의 가용재고와 로트별 유통기한 조회, 예약재고의 구분이군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 2112,
+          "end": 2132,
+          "text": "자동 차감까지는 요청하지 않으셨고요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 2133,
+          "end": 2199,
+          "text": "장하람: 주문 CRM에서 거래처 주문을 받는다고 해서 그 순간 창고 수량을 자동으로 줄이는 것으로 이해하면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0050",
+          "start": 2200,
+          "end": 2232,
+          "text": "주문 조건과 창고 조회는 지금 단계에서는 따로 봐 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0051",
+          "start": 2233,
+          "end": 2316,
+          "text": "영업 담당자: 주문 CRM에서는 거래처의 주문 조건과 상담, 가격 유효기간을 보고, 창고 수량과 로트별 기한은 재고 조회 연동에서 확인하는 것이군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0052",
+          "start": 2317,
+          "end": 2342,
+          "text": "장하람: 테스트용 자료는 제가 준비하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0053",
+          "start": 2343,
+          "end": 2383,
+          "text": "6월 5일까지 테스트 주문 8건과 단가표 2버전을 보내 드릴 예정입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0054",
+          "start": 2384,
+          "end": 2405,
+          "text": "거래처 이름은 가상명으로 바꾸겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0055",
+          "start": 2406,
+          "end": 2421,
+          "text": "영업 담당자: 확인했습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0056",
+          "start": 2422,
+          "end": 2484,
+          "text": "6월 5일까지 테스트 주문 8건과 단가표 2버전을 보내 주시고, 거래처 이름은 가상명으로 제공하시는 일정입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0057",
+          "start": 2485,
+          "end": 2517,
+          "text": "장하람: 단가가 바뀌는 자정 전후의 주문을 각각 넣을게요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0058",
+          "start": 2518,
+          "end": 2562,
+          "text": "그래야 어느 주문에 어느 버전의 단가가 적용됐는지 확인할 수 있을 것 같습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0059",
+          "start": 2563,
+          "end": 2649,
+          "text": "영업 담당자: 자정 전후 주문을 각각 포함한 테스트 자료를 기준으로, 주문별로 적용된 단가를 확인할 수 있는 화면 예시가 필요하다는 요청으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0060",
+          "start": 2650,
+          "end": 2691,
+          "text": "장하람: 제가 원하는 건 단순히 단가표 두 개를 나란히 보는 게 아닙니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0061",
+          "start": 2692,
+          "end": 2740,
+          "text": "주문을 열었을 때 적용된 단가가 어느 버전인지 확인할 수 있는 화면 예시가 필요합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0062",
+          "start": 2741,
+          "end": 2800,
+          "text": "영업 담당자: 자정 전후 주문에 어떤 단가가 적용됐는지 확인할 수 있는 화면 예시가 필요하다는 말씀이군요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0063",
+          "start": 2801,
+          "end": 2861,
+          "text": "장하람: 그리고 단가의 유효기간을 확인하지 않고 전날 파일만 보고 주문을 받는 일이 반복되지 않아야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0064",
+          "start": 2862,
+          "end": 2907,
+          "text": "가격을 보는 화면과 주문에 적용된 가격을 확인하는 화면이 서로 어긋나면 안 돼요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0065",
+          "start": 2908,
+          "end": 3004,
+          "text": "영업 담당자: 승인 단가표와 유효기간을 확인하는 흐름을 주문 CRM에서 검토하고, 단가 수정은 팀장 2명만 가능하며 영업 16명은 같은 기준의 단가를 조회하도록 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0066",
+          "start": 3005,
+          "end": 3077,
+          "text": "장하람: 오늘 정리하면, 주문 쪽은 영업 16명과 팀장 2명의 권한을 나누고, 연 2,200만 원은 부가세 별도의 검토예산입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0067",
+          "start": 3078,
+          "end": 3107,
+          "text": "모바일 조회와 오프라인 마지막 확인시각도 필요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0068",
+          "start": 3108,
+          "end": 3174,
+          "text": "영업 담당자: 재고 쪽은 실물 120박스, 예약 20박스, 가용재고 100박스를 구분하며 로트별 유통기한을 조회합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0069",
+          "start": 3175,
+          "end": 3200,
+          "text": "자동 차감은 요청하지 않은 상태로 두겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0070",
+          "start": 3201,
+          "end": 3260,
+          "text": "장하람: 제가 6월 5일까지 테스트 주문 8건과 단가표 2버전을 보내고, 자정 전후 주문도 포함하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0071",
+          "start": 3261,
+          "end": 3303,
+          "text": "그 자료를 바탕으로 적용 단가를 확인할 수 있는 화면 예시를 준비해 주세요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0072",
+          "start": 3304,
+          "end": 3314,
+          "text": "영업 담당자: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0073",
+          "start": 3315,
+          "end": 3381,
+          "text": "예산은 아직 승인 전이고, 재고는 조회 단계이며, 주문 자료와 단가표를 받은 뒤 적용 단가 화면 예시를 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-03T11:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "47abf18a-4eea-5aec-83c6-a375be2f1273",
+      "name": "새결푸드(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "7dc5c53a-1b7b-50ec-98a4-0b13b6844657",
+      "name": "장하람(가상)"
+    },
+    "activity": {
+      "id": "d2d98e6c-6e65-567f-bc42-dcefe04b128c",
+      "starts_at": "2026-06-03T11:00:00+09:00",
+      "title": "거래처 가격과 재고 용어 정리"
+    },
+    "deals": [
+      {
+        "id": "788723af-dea7-5981-af8c-f268c44bdfa5",
+        "company_id": "company05",
+        "contact_id": "contact05",
+        "title": "거래처 주문 CRM",
+        "description": "식당·급식 거래처의 주문 조건, 상담, 가격 유효기간을 관리하는 CRM. 창고의 실제 재고와 분리.",
+        "deal_amount": 22000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "788723af-dea7-5981-af8c-f268c44bdfa5",
+        "observed_state": "도입 검토; 계약 없음"
+      },
+      {
+        "id": "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+        "company_id": "company05",
+        "contact_id": "contact05",
+        "title": "재고·유통기한 조회",
+        "description": "창고시스템의 가용재고와 로트별 유통기한을 조회하는 연동. 예약재고를 판매가능재고에서 분리.",
+        "deal_amount": 9000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+        "observed_state": "도입 검토; 계약 없음"
+      }
+    ],
+    "previous_reports": [],
+    "trade_history": []
+  },
+  "attachments": []
+}

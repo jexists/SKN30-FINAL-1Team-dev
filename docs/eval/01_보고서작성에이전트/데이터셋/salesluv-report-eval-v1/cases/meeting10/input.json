@@ -1,0 +1,1279 @@
+{
+  "transcript": "영업 담당자: 오늘은 6월 8일이니, 지난 6월 4일에 보내 드린 수정 제안서부터 확인하고 시범 운영 조건을 맞춰 보겠습니다. 수정본은 내부 사용자 스무 명과 별도 ERP 연동 항목을 나누어 반영해 발송했고, 메일 수신과 재무팀 전달까지 확인된 상태입니다. 제안서가 도착하지 않았거나 수정 항목이 빠진 상황은 아닌 것으로 이해하고 있습니다.\n고은서: 메일은 확인했고 재무팀에도 전달했습니다. 요청했던 구분도 들어가 있더군요. 다만 재무팀에 넘어갔다는 것과 비용 집행을 승인했다는 것은 다릅니다. 아직 결재가 난 상태는 아니에요.\n영업 담당자: 네, 그 부분은 분리해서 보고 있습니다. 수정 제안을 보내고 수신된 후속 업무는 끝났지만, 내부 도입 검토 자체가 끝난 것은 아닙니다. 재무팀의 검토가 시작됐다는 의미와 예산 집행 승인은 같은 단계가 아니니까요.\n고은서: 재무팀에서 지금 확인하는 건 두 가지입니다. 하나는 계약이 자동 갱신되는 조건인지, 다른 하나는 계약이 끝났을 때 CRM에 쌓인 데이터를 어떤 형식으로 받을 수 있는지예요. 이 답을 받아야 예산 승인 문서를 올릴 수 있습니다.\n영업 담당자: 자동 갱신은 기본 조건으로 들어가는지, 종료 시 데이터 반출은 어떤 형식과 절차로 제공되는지 확인해 보겠습니다. 아직 그 두 조항에 대한 답을 드린 상태는 아니고, 따라서 연간 2,400만 원이 승인됐다고 볼 수도 없습니다. 가격을 더 낮춰 달라는 요청이 현재 있는 것으로 이해하지도 않겠습니다.\n고은서: 맞습니다. 금액 자체를 더 낮춰 달라고 한 건 아니고, 조건이 명확해야 재무팀이 판단할 수 있다는 뜻입니다. 계약조건 검토와 금액 승인을 한 묶음으로 보지는 말아 주세요.\n영업 담당자: 그럼 먼저 견적·고객관리 CRM의 시범 범위를 보겠습니다. 전체 도입 검토 대상은 스무 명이지만, 이번에는 사용자 다섯 명이 먼저 입력합니다. 다섯 명은 전체 유료 계약 수량이 아니라 초기 시범 참여자입니다.\n고은서: 시범에서 볼 자료는 표본 스무 건으로 유지할게요. 다섯 명이 그 스무 건을 나누어 입력하고, 저는 회신 시간과 승인 누락 여부를 같이 확인하겠습니다. 하루 이내 회신 목표는 그대로 두되, 승인 누락이 있으면 시간이 빨랐더라도 통과한 것으로 보기는 어렵습니다.\n영업 담당자: 그 기준이면 회신 시간만 따로 보지 않고 승인 누락 여부와 함께 확인하겠습니다. 결과는 영업본부장에게 전달하실 예정인 것으로 알고 있습니다. 사용자 다섯 명을 스무 명 전체의 계약 수량으로 바꾸어 해석하지 않겠습니다.\n고은서: 네. 스무 명을 대상으로 도입을 검토하는 것과 먼저 다섯 명이 써 보는 것은 구분해야 합니다. 시범 결과가 괜찮더라도 전체 도입 여부는 다른 조건까지 확인한 뒤 판단할 겁니다.\n영업 담당자: ERP 단가 연동 쪽은 현재 상태가 다릅니다. 테스트 품번 세 개가 들어 있는 파일은 확보했지만, 그 파일을 받았다고 해서 실시간 조회 연동이 가능한 것은 아닙니다. API 사용권과 비용, 조회 권한 범위가 아직 확정되지 않았으므로 해당 연동 검토는 보류하겠습니다.\n고은서: ERP 공급사에서는 API 사용 계약이 별도라고 했습니다. 사용료가 얼마인지, 승인된 단가만 조회할 수 있는지, 권한 범위가 어디까지인지 아직 답을 받지 못했어요. 그 내용이 오기 전에는 연동을 진행하는 것으로 보면 안 됩니다.\n영업 담당자: 알겠습니다. 테스트 파일 세 개는 확인 자료로만 두고, API 사용권이나 비용이 정해진 것으로 다루지 않겠습니다. 공급사가 사용료와 조회 권한 범위를 알려 줄 때까지는 ERP 연동은 보류하고, CRM 시범은 파일 업로드 방식으로 진행하는 방향이 맞겠습니다.\n고은서: 파일 업로드 방식의 CRM 시범은 진행할 수 있습니다. ERP와 연결되지 않았다는 이유로 CRM 쪽 일정까지 멈출 필요는 없어요. 다만 업로드한 테스트 자료와 실제 고객에게 보낸 기록은 구별되어야 합니다.\n영업 담당자: CRM 시범에서 하는 일은 견적 작성과 승인 요청을 올리는 단계까지로 한정하겠습니다. 외부 고객에게 자동으로 메일을 보내는 기능은 사용하지 않고, 실제 발송은 기존 메일로 처리합니다. CRM에는 실제 발송 시각을 확인해 입력하겠습니다.\n고은서: 맞아요. 자동 메일을 켰다는 전제로 시간을 계산하면 실제 업무와 비교할 수 없습니다. 시범 중에는 외부 자동 발송을 쓰지 않고, 기존 메일에서 보낸 시각을 CRM에 넣어야 합니다.\n영업 담당자: 그러면 견적을 작성한 시점, 승인 요청을 올린 단계, 기존 메일로 외부 발송한 시각을 서로 섞지 않고 확인하겠습니다. 자동 발송으로 절감된 시간을 전제로 삼지는 않겠습니다.\n고은서: 입력 과정에서 오류가 난 건도 빼지 않을 겁니다. 표본 스무 건 안에서 해당 건을 표시하고, 고치는 데 걸린 시간도 남겨야 해요. 그래야 실제 사용 중 생긴 문제를 볼 수 있습니다.\n영업 담당자: 그 건을 임의로 제외하지 않고 표본 안에 남기겠습니다. 다만 고객이 중간에 수량을 바꾼 경우는 사용자가 잘못 입력한 경우와 별도 사유로 표시하겠습니다. 모든 지연을 시스템 문제로 단정하지도 않고, 반대로 모든 오류를 사용자 실수로 돌리지도 않겠습니다.\n고은서: 그 구분이 중요합니다. 예를 들어 입력값이 틀린 건은 수정 소요 시간을 기록하고, 고객 요청으로 수량이 달라진 건은 변경 사유로 남기면 됩니다. 둘을 한 종류의 오류처럼 다루면 회신 시간이 왜 늘었는지 알 수 없어요.\n영업 담당자: 계약조건과 시범 결과표에 관한 일정도 확인하겠습니다. 영업 쪽에서는 6월 11일까지 자동 갱신과 계약 종료 시 데이터 반출에 관한 조항 초안을 보내 드리겠습니다. 조항을 전달하는 것과 재무팀이나 법무의 승인이 끝나는 것은 별도 단계로 두겠습니다.\n고은서: 초안이 6월 11일까지 오면 제가 재무팀에 확인하겠습니다. 이메일을 받았다고 해서 법무 승인까지 끝난 것은 아니니, 그 후속 확인은 남겨 둬야 합니다. 저는 시범 결과표를 6월 14일까지 정리할 예정입니다.\n영업 담당자: 결과표에는 표본 스무 건 각각의 회신 시간과 승인 누락 여부가 들어가야 작성이 끝나는 것으로 이해했습니다. 시범 참여자 다섯 명의 입력분만 따로 떼어 전체 결과처럼 보지는 않겠습니다.\n고은서: 네. 스무 건의 회신 시간과 승인 누락 여부가 모두 있어야 합니다. 잘못 입력한 건과 고객이 수량을 바꾼 건도 구분해서 표시할 거예요. 일부 건이 빠진 상태로 전체 결과를 판단하지는 않겠습니다.\n영업 담당자: 재무팀 검토 회의가 앞당겨졌다는 이야기도 들었습니다. 다만 회의 날짜가 하루 당겨진 것이 구매 결정일이 확정됐다는 뜻은 아니므로, 결과표와 계약 문구를 확인하기 전에는 계약이 끝난 상태로 보지 않겠습니다.\n고은서: 맞습니다. 회의가 하루 빨라졌을 뿐이에요. 시범 결과가 나오기 전에는 계약 완료로 볼 수 없고, 결과가 좋더라도 자동 갱신 조건이 해결되지 않으면 다시 검토할 수 있습니다.\n영업 담당자: 결국 다음 주에는 시범 결과와 조항을 함께 놓고 판단하는 구조군요. CRM 쪽은 견적 작성과 승인 요청, 기존 메일 발송 시각 확인까지 진행하고, ERP 쪽은 API 사용권·비용과 조회 권한 범위가 확인될 때까지 보류하겠습니다.\n고은서: 네, 그 구분이면 됩니다. 6월 11일까지 조항 초안을 받고, 6월 14일까지 스무 건의 시범 결과표를 정리하겠습니다. 재무팀 결재와 법무 확인은 초안 전달 이후에 남아 있고, 자동 갱신 조건이 해결되지 않으면 결과가 좋아도 최종 판단은 다시 해야 합니다.\n영업 담당자: 그럼 오늘 기준으로는 수정 제안서 수신과 전달은 확인됐고, CRM은 다섯 명이 스무 건을 대상으로 정해진 범위에서 시범을 진행합니다. 외부 자동 발송은 쓰지 않으며 오류와 수량 변경을 구분해 남기겠습니다. ERP 연동은 테스트 파일 세 개만 확보된 상태이고 API 조건이 정해질 때까지 보류하겠습니다.\n고은서: 네. 그 상태에서 재무팀은 자동 갱신과 계약 종료 때 데이터 반출 형식을 검토하고, 저는 조항을 확인한 뒤 예산 승인 문서를 올릴 계획입니다. 회의 일정이 앞당겨졌다는 이유만으로 계약이 확정된 것은 아니며, 시범 결과와 조건을 함께 본 뒤 판단하겠습니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "28f21a45a976facb6350b0fa2b86026de466f265f38630945f60dac9943ddb5a",
+    "selected_deal_ids": [
+      "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+      "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 70,
+          "text": "영업 담당자: 오늘은 6월 8일이니, 지난 6월 4일에 보내 드린 수정 제안서부터 확인하고 시범 운영 조건을 맞춰 보겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 71,
+          "end": 143,
+          "text": "수정본은 내부 사용자 스무 명과 별도 ERP 연동 항목을 나누어 반영해 발송했고, 메일 수신과 재무팀 전달까지 확인된 상태입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 144,
+          "end": 190,
+          "text": "제안서가 도착하지 않았거나 수정 항목이 빠진 상황은 아닌 것으로 이해하고 있습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 191,
+          "end": 218,
+          "text": "고은서: 메일은 확인했고 재무팀에도 전달했습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 219,
+          "end": 237,
+          "text": "요청했던 구분도 들어가 있더군요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 238,
+          "end": 276,
+          "text": "다만 재무팀에 넘어갔다는 것과 비용 집행을 승인했다는 것은 다릅니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 277,
+          "end": 295,
+          "text": "아직 결재가 난 상태는 아니에요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 296,
+          "end": 326,
+          "text": "영업 담당자: 네, 그 부분은 분리해서 보고 있습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 327,
+          "end": 379,
+          "text": "수정 제안을 보내고 수신된 후속 업무는 끝났지만, 내부 도입 검토 자체가 끝난 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 380,
+          "end": 422,
+          "text": "재무팀의 검토가 시작됐다는 의미와 예산 집행 승인은 같은 단계가 아니니까요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 423,
+          "end": 452,
+          "text": "고은서: 재무팀에서 지금 확인하는 건 두 가지입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 453,
+          "end": 524,
+          "text": "하나는 계약이 자동 갱신되는 조건인지, 다른 하나는 계약이 끝났을 때 CRM에 쌓인 데이터를 어떤 형식으로 받을 수 있는지예요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 525,
+          "end": 554,
+          "text": "이 답을 받아야 예산 승인 문서를 올릴 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 555,
+          "end": 625,
+          "text": "영업 담당자: 자동 갱신은 기본 조건으로 들어가는지, 종료 시 데이터 반출은 어떤 형식과 절차로 제공되는지 확인해 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 626,
+          "end": 688,
+          "text": "아직 그 두 조항에 대한 답을 드린 상태는 아니고, 따라서 연간 2,400만 원이 승인됐다고 볼 수도 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 689,
+          "end": 728,
+          "text": "가격을 더 낮춰 달라는 요청이 현재 있는 것으로 이해하지도 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 729,
+          "end": 739,
+          "text": "고은서: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 740,
+          "end": 794,
+          "text": "금액 자체를 더 낮춰 달라고 한 건 아니고, 조건이 명확해야 재무팀이 판단할 수 있다는 뜻입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 795,
+          "end": 829,
+          "text": "계약조건 검토와 금액 승인을 한 묶음으로 보지는 말아 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 830,
+          "end": 870,
+          "text": "영업 담당자: 그럼 먼저 견적·고객관리 CRM의 시범 범위를 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 871,
+          "end": 917,
+          "text": "전체 도입 검토 대상은 스무 명이지만, 이번에는 사용자 다섯 명이 먼저 입력합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 918,
+          "end": 954,
+          "text": "다섯 명은 전체 유료 계약 수량이 아니라 초기 시범 참여자입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 955,
+          "end": 987,
+          "text": "고은서: 시범에서 볼 자료는 표본 스무 건으로 유지할게요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 988,
+          "end": 1043,
+          "text": "다섯 명이 그 스무 건을 나누어 입력하고, 저는 회신 시간과 승인 누락 여부를 같이 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1044,
+          "end": 1104,
+          "text": "하루 이내 회신 목표는 그대로 두되, 승인 누락이 있으면 시간이 빨랐더라도 통과한 것으로 보기는 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1105,
+          "end": 1157,
+          "text": "영업 담당자: 그 기준이면 회신 시간만 따로 보지 않고 승인 누락 여부와 함께 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1158,
+          "end": 1191,
+          "text": "결과는 영업본부장에게 전달하실 예정인 것으로 알고 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1192,
+          "end": 1234,
+          "text": "사용자 다섯 명을 스무 명 전체의 계약 수량으로 바꾸어 해석하지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1235,
+          "end": 1242,
+          "text": "고은서: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1243,
+          "end": 1292,
+          "text": "스무 명을 대상으로 도입을 검토하는 것과 먼저 다섯 명이 써 보는 것은 구분해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1293,
+          "end": 1338,
+          "text": "시범 결과가 괜찮더라도 전체 도입 여부는 다른 조건까지 확인한 뒤 판단할 겁니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1339,
+          "end": 1372,
+          "text": "영업 담당자: ERP 단가 연동 쪽은 현재 상태가 다릅니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1373,
+          "end": 1439,
+          "text": "테스트 품번 세 개가 들어 있는 파일은 확보했지만, 그 파일을 받았다고 해서 실시간 조회 연동이 가능한 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1440,
+          "end": 1495,
+          "text": "API 사용권과 비용, 조회 권한 범위가 아직 확정되지 않았으므로 해당 연동 검토는 보류하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1496,
+          "end": 1533,
+          "text": "고은서: ERP 공급사에서는 API 사용 계약이 별도라고 했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1534,
+          "end": 1592,
+          "text": "사용료가 얼마인지, 승인된 단가만 조회할 수 있는지, 권한 범위가 어디까지인지 아직 답을 받지 못했어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1593,
+          "end": 1628,
+          "text": "그 내용이 오기 전에는 연동을 진행하는 것으로 보면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1629,
+          "end": 1643,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1644,
+          "end": 1700,
+          "text": "테스트 파일 세 개는 확인 자료로만 두고, API 사용권이나 비용이 정해진 것으로 다루지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1701,
+          "end": 1780,
+          "text": "공급사가 사용료와 조회 권한 범위를 알려 줄 때까지는 ERP 연동은 보류하고, CRM 시범은 파일 업로드 방식으로 진행하는 방향이 맞겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1781,
+          "end": 1816,
+          "text": "고은서: 파일 업로드 방식의 CRM 시범은 진행할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1817,
+          "end": 1858,
+          "text": "ERP와 연결되지 않았다는 이유로 CRM 쪽 일정까지 멈출 필요는 없어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 1859,
+          "end": 1900,
+          "text": "다만 업로드한 테스트 자료와 실제 고객에게 보낸 기록은 구별되어야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 1901,
+          "end": 1956,
+          "text": "영업 담당자: CRM 시범에서 하는 일은 견적 작성과 승인 요청을 올리는 단계까지로 한정하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 1957,
+          "end": 2011,
+          "text": "외부 고객에게 자동으로 메일을 보내는 기능은 사용하지 않고, 실제 발송은 기존 메일로 처리합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 2012,
+          "end": 2040,
+          "text": "CRM에는 실제 발송 시각을 확인해 입력하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 2041,
+          "end": 2050,
+          "text": "고은서: 맞아요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 2051,
+          "end": 2093,
+          "text": "자동 메일을 켰다는 전제로 시간을 계산하면 실제 업무와 비교할 수 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 2094,
+          "end": 2146,
+          "text": "시범 중에는 외부 자동 발송을 쓰지 않고, 기존 메일에서 보낸 시각을 CRM에 넣어야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0050",
+          "start": 2147,
+          "end": 2220,
+          "text": "영업 담당자: 그러면 견적을 작성한 시점, 승인 요청을 올린 단계, 기존 메일로 외부 발송한 시각을 서로 섞지 않고 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0051",
+          "start": 2221,
+          "end": 2251,
+          "text": "자동 발송으로 절감된 시간을 전제로 삼지는 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0052",
+          "start": 2252,
+          "end": 2284,
+          "text": "고은서: 입력 과정에서 오류가 난 건도 빼지 않을 겁니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0053",
+          "start": 2285,
+          "end": 2329,
+          "text": "표본 스무 건 안에서 해당 건을 표시하고, 고치는 데 걸린 시간도 남겨야 해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0054",
+          "start": 2330,
+          "end": 2358,
+          "text": "그래야 실제 사용 중 생긴 문제를 볼 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0055",
+          "start": 2359,
+          "end": 2397,
+          "text": "영업 담당자: 그 건을 임의로 제외하지 않고 표본 안에 남기겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0056",
+          "start": 2398,
+          "end": 2451,
+          "text": "다만 고객이 중간에 수량을 바꾼 경우는 사용자가 잘못 입력한 경우와 별도 사유로 표시하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0057",
+          "start": 2452,
+          "end": 2507,
+          "text": "모든 지연을 시스템 문제로 단정하지도 않고, 반대로 모든 오류를 사용자 실수로 돌리지도 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0058",
+          "start": 2508,
+          "end": 2525,
+          "text": "고은서: 그 구분이 중요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0059",
+          "start": 2526,
+          "end": 2593,
+          "text": "예를 들어 입력값이 틀린 건은 수정 소요 시간을 기록하고, 고객 요청으로 수량이 달라진 건은 변경 사유로 남기면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0060",
+          "start": 2594,
+          "end": 2634,
+          "text": "둘을 한 종류의 오류처럼 다루면 회신 시간이 왜 늘었는지 알 수 없어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0061",
+          "start": 2635,
+          "end": 2672,
+          "text": "영업 담당자: 계약조건과 시범 결과표에 관한 일정도 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0062",
+          "start": 2673,
+          "end": 2733,
+          "text": "영업 쪽에서는 6월 11일까지 자동 갱신과 계약 종료 시 데이터 반출에 관한 조항 초안을 보내 드리겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0063",
+          "start": 2734,
+          "end": 2780,
+          "text": "조항을 전달하는 것과 재무팀이나 법무의 승인이 끝나는 것은 별도 단계로 두겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0064",
+          "start": 2781,
+          "end": 2818,
+          "text": "고은서: 초안이 6월 11일까지 오면 제가 재무팀에 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0065",
+          "start": 2819,
+          "end": 2870,
+          "text": "이메일을 받았다고 해서 법무 승인까지 끝난 것은 아니니, 그 후속 확인은 남겨 둬야 합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0066",
+          "start": 2871,
+          "end": 2901,
+          "text": "저는 시범 결과표를 6월 14일까지 정리할 예정입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0067",
+          "start": 2902,
+          "end": 2969,
+          "text": "영업 담당자: 결과표에는 표본 스무 건 각각의 회신 시간과 승인 누락 여부가 들어가야 작성이 끝나는 것으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0068",
+          "start": 2970,
+          "end": 3012,
+          "text": "시범 참여자 다섯 명의 입력분만 따로 떼어 전체 결과처럼 보지는 않겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0069",
+          "start": 3013,
+          "end": 3020,
+          "text": "고은서: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0070",
+          "start": 3021,
+          "end": 3055,
+          "text": "스무 건의 회신 시간과 승인 누락 여부가 모두 있어야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0071",
+          "start": 3056,
+          "end": 3093,
+          "text": "잘못 입력한 건과 고객이 수량을 바꾼 건도 구분해서 표시할 거예요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0072",
+          "start": 3094,
+          "end": 3126,
+          "text": "일부 건이 빠진 상태로 전체 결과를 판단하지는 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0073",
+          "start": 3127,
+          "end": 3164,
+          "text": "영업 담당자: 재무팀 검토 회의가 앞당겨졌다는 이야기도 들었습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0074",
+          "start": 3165,
+          "end": 3249,
+          "text": "다만 회의 날짜가 하루 당겨진 것이 구매 결정일이 확정됐다는 뜻은 아니므로, 결과표와 계약 문구를 확인하기 전에는 계약이 끝난 상태로 보지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0075",
+          "start": 3250,
+          "end": 3260,
+          "text": "고은서: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0076",
+          "start": 3261,
+          "end": 3278,
+          "text": "회의가 하루 빨라졌을 뿐이에요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0077",
+          "start": 3279,
+          "end": 3351,
+          "text": "시범 결과가 나오기 전에는 계약 완료로 볼 수 없고, 결과가 좋더라도 자동 갱신 조건이 해결되지 않으면 다시 검토할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0078",
+          "start": 3352,
+          "end": 3397,
+          "text": "영업 담당자: 결국 다음 주에는 시범 결과와 조항을 함께 놓고 판단하는 구조군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0079",
+          "start": 3398,
+          "end": 3487,
+          "text": "CRM 쪽은 견적 작성과 승인 요청, 기존 메일 발송 시각 확인까지 진행하고, ERP 쪽은 API 사용권·비용과 조회 권한 범위가 확인될 때까지 보류하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0080",
+          "start": 3488,
+          "end": 3507,
+          "text": "고은서: 네, 그 구분이면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0081",
+          "start": 3508,
+          "end": 3559,
+          "text": "6월 11일까지 조항 초안을 받고, 6월 14일까지 스무 건의 시범 결과표를 정리하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0082",
+          "start": 3560,
+          "end": 3636,
+          "text": "재무팀 결재와 법무 확인은 초안 전달 이후에 남아 있고, 자동 갱신 조건이 해결되지 않으면 결과가 좋아도 최종 판단은 다시 해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0083",
+          "start": 3637,
+          "end": 3719,
+          "text": "영업 담당자: 그럼 오늘 기준으로는 수정 제안서 수신과 전달은 확인됐고, CRM은 다섯 명이 스무 건을 대상으로 정해진 범위에서 시범을 진행합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0084",
+          "start": 3720,
+          "end": 3759,
+          "text": "외부 자동 발송은 쓰지 않으며 오류와 수량 변경을 구분해 남기겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0085",
+          "start": 3760,
+          "end": 3813,
+          "text": "ERP 연동은 테스트 파일 세 개만 확보된 상태이고 API 조건이 정해질 때까지 보류하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+            "dccf41cc-9724-5fba-b283-5cde62b35b7b"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0086",
+          "start": 3814,
+          "end": 3821,
+          "text": "고은서: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0087",
+          "start": 3822,
+          "end": 3898,
+          "text": "그 상태에서 재무팀은 자동 갱신과 계약 종료 때 데이터 반출 형식을 검토하고, 저는 조항을 확인한 뒤 예산 승인 문서를 올릴 계획입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0088",
+          "start": 3899,
+          "end": 3961,
+          "text": "회의 일정이 앞당겨졌다는 이유만으로 계약이 확정된 것은 아니며, 시범 결과와 조건을 함께 본 뒤 판단하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "4e1e4497-ee12-596a-ac5c-dd03b710df44"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-08T09:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "1e8bd679-8290-5a00-a9b4-6da56d4b64cd",
+      "name": "은솔정밀(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "fdbf433d-1d13-54f1-8fe2-4938f2699bef",
+      "name": "고은서(가상)"
+    },
+    "activity": {
+      "id": "df0a4f78-86cd-58e5-9278-e826f7b3f378",
+      "starts_at": "2026-06-08T09:00:00+09:00",
+      "title": "수정 제안서 수신과 시범 평가 조건"
+    },
+    "deals": [
+      {
+        "id": "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+        "company_id": "company01",
+        "contact_id": "contact01",
+        "title": "견적·고객관리 CRM",
+        "description": "다품종 소량 제조업의 견적 버전·수주전환·고객 요청을 영업 담당자별로 관리하는 업무 소프트웨어 도입.",
+        "deal_amount": 24000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+        "observed_state": "20명 CRM 제안서 수정 요청; 구매 미승인"
+      },
+      {
+        "id": "dccf41cc-9724-5fba-b283-5cde62b35b7b",
+        "company_id": "company01",
+        "contact_id": "contact01",
+        "title": "ERP 단가 연동",
+        "description": "기존 생산 ERP의 유효기간별 단가를 조회하고 승인된 견적 가격에만 연결하는 읽기 전용 연동.",
+        "deal_amount": 8000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "dccf41cc-9724-5fba-b283-5cde62b35b7b",
+        "observed_state": "조회 API 자료 대기; 기술 검토 보류"
+      }
+    ],
+    "previous_reports": [
+      {
+        "sales_deal_id": "4e1e4497-ee12-596a-ac5c-dd03b710df44",
+        "report_date": "2026-06-01",
+        "body": "견적 회신 중앙값은 2일이며 시범 운영 목표는 1일 이내입니다. 초기 유료 사용자는 25명이 아니라 내부 영업 20명입니다. CRM 검토 상한은 부가세 별도 연 2,400만 원이며 구매 승인은 나지 않았습니다. 고은서는 검토 담당자이며 영업본부장 검토와 재무 승인 단계가 남아 있습니다. CRM에서 수정 중 초안과 승인된 실제 발송본을 구분해야 합니다. 시범 표본은 반복 품목 10건과 신규 가공 품목 10건으로 구성할 계획입니다.",
+        "submission_id": "66114797-be03-5911-a86a-3deaaf0a6b9d"
+      },
+      {
+        "sales_deal_id": "dccf41cc-9724-5fba-b283-5cde62b35b7b",
+        "report_date": "2026-06-01",
+        "body": "ERP 연동 요구는 단가·유효기간 조회이며 원가 수정과 재고 차감은 범위 밖입니다. ERP 테스트 자료 요청 담당자는 고은서이며 전달 기한은 미정입니다. 단가 조회 실패 시 이전 가격을 현재 확정값처럼 적용해서는 안 됩니다.",
+        "submission_id": "66114797-be03-5911-a86a-3deaaf0a6b9d"
+      }
+    ],
+    "trade_history": []
+  },
+  "attachments": []
+}

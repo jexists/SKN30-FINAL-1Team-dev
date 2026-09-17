@@ -1,0 +1,155 @@
+{
+  "case_id": "meeting09",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting09-f01",
+      "claim": "프로듀서9명의 계약범위·수정회차·제작인계 관리가 목적입니다.",
+      "sales_deal_id": "deal09-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting09.txt",
+          "start": 76,
+          "end": 148,
+          "quote": "현재 이음콘텐츠에서 가장 중요하게 보시는 대상은 프로듀서 아홉 분의 계약 범위, 수정 회차, 제작 인계 관리로 이해하고 있습니다.",
+          "segment_ids": [
+            "S0002"
+          ]
+        },
+        {
+          "path": "transcripts/meeting09.txt",
+          "start": 445,
+          "end": 549,
+          "quote": "다만 납품 시스템까지 바꾸려는 건 아닙니다. 영상을 올리고 전달하는 절차를 새로 만들자는 뜻이 아니라, 영업에서 고객에게 한 약속과 제작팀에 넘긴 내용이 어긋나지 않게 하려는 목적이에요.",
+          "segment_ids": [
+            "S0009",
+            "S0010"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting09-f01"
+    },
+    {
+      "id": "meeting09-f02",
+      "claim": "기본수정2회 포함·3회차부터 별도견적이며 요청과 추가비 승인은 다릅니다.",
+      "sales_deal_id": "deal09-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting09.txt",
+          "start": 705,
+          "end": 805,
+          "quote": "기본 수정은 두 회까지 포함하고, 세 번째 회차부터는 별도 견적을 내는 기준을 쓰고 있습니다. 그런데 고객이 세 번째 의견을 보냈다고 해서 바로 추가 비용을 승인한 건 아니잖아요.",
+          "segment_ids": [
+            "S0014",
+            "S0015"
+          ]
+        },
+        {
+          "path": "transcripts/meeting09.txt",
+          "start": 820,
+          "end": 960,
+          "quote": "고객 의견이 접수된 사실과 추가 비용을 승인한 사실은 분리되어야 합니다. 견적 버전 자동화에서는 먼저 범위변경 요청을 남기고, 그다음 수정 내용에 맞춘 금액 제안을 만들고, 고객 승인이 확인된 뒤에야 승인 상태로 이어지게 하는 흐름을 볼 수 있습니다.",
+          "segment_ids": [
+            "S0017",
+            "S0018"
+          ]
+        },
+        {
+          "path": "transcripts/meeting09.txt",
+          "start": 966,
+          "end": 1075,
+          "quote": "한 회 추가비를 정해진 금액으로 자동 계산하는 방식은 원하지 않아요. 세 번째 수정이라고 해도 내용에 따라 달라질 수 있으니, 일률적인 단가를 넣기보다 수정 내용을 보고 별도 견적을 내야 합니다.",
+          "segment_ids": [
+            "S0019",
+            "S0020"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting09-f02"
+    },
+    {
+      "id": "meeting09-f03",
+      "claim": "연2,000만 원 제안을 검토하며 월단위 계약 대안과 대표 비용승인이 필요합니다.",
+      "sales_deal_id": "deal09-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting09.txt",
+          "start": 1809,
+          "end": 1900,
+          "quote": "연 2,000만 원 제안을 검토하고 있는데, 제작 일정이 비는 달이 있어서 연간 고정비로 가는 게 부담스러울 수 있어요. 월 단위 계약이 가능한지도 알고 싶습니다.",
+          "segment_ids": [
+            "S0034",
+            "S0035"
+          ]
+        },
+        {
+          "path": "transcripts/meeting09.txt",
+          "start": 2093,
+          "end": 2138,
+          "quote": "대표가 비용을 승인해야 해서, 제가 괜찮다고 말하는 것만으로는 진행할 수 없어요.",
+          "segment_ids": [
+            "S0040"
+          ]
+        },
+        {
+          "path": "transcripts/meeting09.txt",
+          "start": 2062,
+          "end": 2138,
+          "quote": "아직 내부에서 어느 조건으로 갈지 결정한 건 아닙니다. 대표가 비용을 승인해야 해서, 제가 괜찮다고 말하는 것만으로는 진행할 수 없어요.",
+          "segment_ids": [
+            "S0039",
+            "S0040"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting09-f03"
+    },
+    {
+      "id": "meeting09-f04",
+      "claim": "진해온은6월8일까지 가상프로젝트3건의 촬영일수·산출물·수정회차를 제공할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting09.txt",
+          "start": 1503,
+          "end": 1632,
+          "quote": "제가 그 화면을 판단할 수 있도록 자료를 보내드릴게요. 6월 8일까지 가상 프로젝트 세 건에 대해 촬영일수, 산출물, 수정회차를 전달하겠습니다. 실제 고객의 공개되지 않은 기획서를 쓰지는 않고, 가상 프로젝트 자료로 보려고 합니다.",
+          "segment_ids": [
+            "S0028",
+            "S0029",
+            "S0030"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting09-f04"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting09-f01",
+    "meeting09-f02",
+    "meeting09-f03",
+    "meeting09-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

@@ -1,0 +1,629 @@
+{
+  "transcript": "영업 담당자: 수정 견적은 지난 6월 11일 전달드린 뒤로 검토가 진행된 것으로 알고 있습니다. 오늘은 화주 고객관리 시범을 왜 멈춰 둔 상태인지, 그리고 거점 담당자 교육을 어떤 조건에서 다시 논의할 수 있을지 차례로 확인하면 될까요?\n도윤재: 네. 화주 고객관리 견적은 받았고 조건도 저희가 검토한 범위에서는 맞습니다. 다만 지점에서 실제로 운영할 사람을 빼기가 어려워서 시범 시작 자체를 보류했습니다. 견적이나 제품 조건을 거절해서 멈춘 상황은 아닙니다.\n영업 담당자: 그렇다면 아직 사용을 시작하지 않은 상태군요. 이 CRM은 화주별 운송 계약 갱신과 운임 문의를 한곳에서 관리하는 용도이고, 배차나 차량 운행은 현재 쓰시는 배차시스템을 그대로 유지하는 구성입니다. 인력이 확보되지 않으면 이 범위의 시범도 진행하기 어렵다는 말씀이시죠?\n도윤재: 맞습니다. 아직 시험을 시작하지 않았으니 시험 결과도 없습니다. 제품 오류가 나서 실패한 것이 아니고, 성공률이나 회신시간 같은 결과를 말할 단계도 아닙니다. 운영할 담당자가 없는 게 지금 시범을 못 여는 직접적인 이유입니다.\n영업 담당자: 가격 쪽은 어떠신가요? 수정 견적을 거절하신 건지, 아니면 예산 승인 절차가 아직 남아 있는지 구분해서 듣고 싶습니다.\n도윤재: 예산 승인은 아직 남아 있습니다. 그렇지만 이번 주에 시작하지 못하는 직접 사유를 가격 문제로 보기는 어렵습니다. 가격 경쟁에서 졌다거나 다른 업체와 계약했다는 연락은 없었고, 대체 제품을 최종 선정했다는 얘기도 받은 적이 없습니다.\n도윤재: 교육도 지금 바로 잡기는 어렵습니다. 교육을 받을 사람과 실제 운영자가 같은데, 어느 직원이 맡을지 아직 정하지 못했습니다. 날짜부터 정하면 참석 인원이 다시 바뀔 수 있어서 거점 담당자 교육 계약도 함께 보류하고 싶습니다.\n영업 담당자: 교육은 지점별 화주 응대 담당자가 CRM을 실제로 쓰도록 익히고 현장에 정착시키는 과정이라, 운영자가 정해진 뒤에 잡는 편이 맞겠습니다. 지점장이 운영 담당자 두 명을 배정할 수 있는지는 다음 주에 확인하기로 하신 상태인가요?\n도윤재: 네. 다만 아직 두 명이 배정된 것은 아닙니다. 지점장에게 가능한지 확인해 보고, 누가 맡는지와 주당 어느 정도 참여할 수 있는지도 받아야 교육 일정을 판단할 수 있습니다. 사람이 정해지지 않은 채 날짜만 먼저 잡지는 않겠습니다.\n영업 담당자: 확인 시점은 6월 19일까지로 보면 될까요? 그때 담당자 두 명의 배정 가능 여부를 확인하시고, 배정된 사람 이름과 주당 참여 가능 시간이 함께 오면 인력 조건을 확인할 수 있다는 뜻으로 이해했습니다.\n도윤재: 그렇습니다. 제가 6월 19일까지 지점장에게 확인하겠습니다. 회신이 없으면 일정은 계속 미정으로 두어야 합니다. 배정이 완료되었다고 미리 보기는 어렵습니다.\n영업 담당자: 그 사이 화주 고객관리 계정은 유료로 활성화하지 않고, 현재 견적의 유효기간만 안내드리겠습니다. 담당자 회신이 온 뒤에 시범과 교육을 다시 검토하는 흐름으로 이해하면 되겠습니까?\n도윤재: 네. 지금은 유료 활성화 없이 견적 유효기간만 알려 주세요. 6월 19일까지 담당자 두 명을 배정할 수 있는지 확인한 뒤, 이름과 참여 가능 시간을 기준으로 다음 단계를 보겠습니다. 그 전까지는 시범과 교육 모두 보류 상태입니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "3e17bc10d07c0a5f2afb1f6ac92c6c2ea2a132aede39f01601cc2780220a940d",
+    "selected_deal_ids": [
+      "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+      "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 53,
+          "text": "영업 담당자: 수정 견적은 지난 6월 11일 전달드린 뒤로 검토가 진행된 것으로 알고 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 54,
+          "end": 132,
+          "text": "오늘은 화주 고객관리 시범을 왜 멈춰 둔 상태인지, 그리고 거점 담당자 교육을 어떤 조건에서 다시 논의할 수 있을지 차례로 확인하면 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 133,
+          "end": 140,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 141,
+          "end": 180,
+          "text": "화주 고객관리 견적은 받았고 조건도 저희가 검토한 범위에서는 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 181,
+          "end": 227,
+          "text": "다만 지점에서 실제로 운영할 사람을 빼기가 어려워서 시범 시작 자체를 보류했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 228,
+          "end": 257,
+          "text": "견적이나 제품 조건을 거절해서 멈춘 상황은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 258,
+          "end": 291,
+          "text": "영업 담당자: 그렇다면 아직 사용을 시작하지 않은 상태군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 292,
+          "end": 376,
+          "text": "이 CRM은 화주별 운송 계약 갱신과 운임 문의를 한곳에서 관리하는 용도이고, 배차나 차량 운행은 현재 쓰시는 배차시스템을 그대로 유지하는 구성입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 377,
+          "end": 416,
+          "text": "인력이 확보되지 않으면 이 범위의 시범도 진행하기 어렵다는 말씀이시죠?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 417,
+          "end": 427,
+          "text": "도윤재: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 428,
+          "end": 457,
+          "text": "아직 시험을 시작하지 않았으니 시험 결과도 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 458,
+          "end": 510,
+          "text": "제품 오류가 나서 실패한 것이 아니고, 성공률이나 회신시간 같은 결과를 말할 단계도 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 511,
+          "end": 548,
+          "text": "운영할 담당자가 없는 게 지금 시범을 못 여는 직접적인 이유입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 549,
+          "end": 569,
+          "text": "영업 담당자: 가격 쪽은 어떠신가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 570,
+          "end": 623,
+          "text": "수정 견적을 거절하신 건지, 아니면 예산 승인 절차가 아직 남아 있는지 구분해서 듣고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 624,
+          "end": 647,
+          "text": "도윤재: 예산 승인은 아직 남아 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 648,
+          "end": 692,
+          "text": "그렇지만 이번 주에 시작하지 못하는 직접 사유를 가격 문제로 보기는 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 693,
+          "end": 759,
+          "text": "가격 경쟁에서 졌다거나 다른 업체와 계약했다는 연락은 없었고, 대체 제품을 최종 선정했다는 얘기도 받은 적이 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 760,
+          "end": 785,
+          "text": "도윤재: 교육도 지금 바로 잡기는 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 786,
+          "end": 834,
+          "text": "교육을 받을 사람과 실제 운영자가 같은데, 어느 직원이 맡을지 아직 정하지 못했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 835,
+          "end": 890,
+          "text": "날짜부터 정하면 참석 인원이 다시 바뀔 수 있어서 거점 담당자 교육 계약도 함께 보류하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 891,
+          "end": 975,
+          "text": "영업 담당자: 교육은 지점별 화주 응대 담당자가 CRM을 실제로 쓰도록 익히고 현장에 정착시키는 과정이라, 운영자가 정해진 뒤에 잡는 편이 맞겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 976,
+          "end": 1025,
+          "text": "지점장이 운영 담당자 두 명을 배정할 수 있는지는 다음 주에 확인하기로 하신 상태인가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 1026,
+          "end": 1033,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1034,
+          "end": 1057,
+          "text": "다만 아직 두 명이 배정된 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1058,
+          "end": 1127,
+          "text": "지점장에게 가능한지 확인해 보고, 누가 맡는지와 주당 어느 정도 참여할 수 있는지도 받아야 교육 일정을 판단할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1128,
+          "end": 1159,
+          "text": "사람이 정해지지 않은 채 날짜만 먼저 잡지는 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1160,
+          "end": 1192,
+          "text": "영업 담당자: 확인 시점은 6월 19일까지로 보면 될까요?"
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1193,
+          "end": 1280,
+          "text": "그때 담당자 두 명의 배정 가능 여부를 확인하시고, 배정된 사람 이름과 주당 참여 가능 시간이 함께 오면 인력 조건을 확인할 수 있다는 뜻으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1281,
+          "end": 1292,
+          "text": "도윤재: 그렇습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1293,
+          "end": 1319,
+          "text": "제가 6월 19일까지 지점장에게 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1320,
+          "end": 1348,
+          "text": "회신이 없으면 일정은 계속 미정으로 두어야 합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1349,
+          "end": 1373,
+          "text": "배정이 완료되었다고 미리 보기는 어렵습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1374,
+          "end": 1435,
+          "text": "영업 담당자: 그 사이 화주 고객관리 계정은 유료로 활성화하지 않고, 현재 견적의 유효기간만 안내드리겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1436,
+          "end": 1481,
+          "text": "담당자 회신이 온 뒤에 시범과 교육을 다시 검토하는 흐름으로 이해하면 되겠습니까?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1482,
+          "end": 1489,
+          "text": "도윤재: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1490,
+          "end": 1520,
+          "text": "지금은 유료 활성화 없이 견적 유효기간만 알려 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1521,
+          "end": 1588,
+          "text": "6월 19일까지 담당자 두 명을 배정할 수 있는지 확인한 뒤, 이름과 참여 가능 시간을 기준으로 다음 단계를 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1589,
+          "end": 1615,
+          "text": "그 전까지는 시범과 교육 모두 보류 상태입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+            "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-15T11:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "41ffacdf-2121-5502-9566-ae328819655c",
+      "name": "나루물류(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "dd0adbab-6918-5dd7-b09d-c05f2fe893d8",
+      "name": "도윤재(가상)"
+    },
+    "activity": {
+      "id": "46aade97-8d0a-54d7-a9bc-d6070c653eb6",
+      "starts_at": "2026-06-15T11:00:00+09:00",
+      "title": "시범 보류 사유와 인력 확보 조건"
+    },
+    "deals": [
+      {
+        "id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "company_id": "company02",
+        "contact_id": "contact02",
+        "title": "화주 고객관리",
+        "description": "화주별 운송 계약 갱신과 운임 문의를 통합하는 CRM. 배차·차량운행 자체는 기존 배차시스템 유지.",
+        "deal_amount": 30000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "observed_state": "12명·1거점 시범 견적 재요청; 구매 미승인"
+      },
+      {
+        "id": "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef",
+        "company_id": "company02",
+        "contact_id": "contact02",
+        "title": "거점 담당자 교육",
+        "description": "지점별 화주 응대 담당자의 CRM 사용 교육과 현장 정착 지원.",
+        "deal_amount": 4000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "0fb237fb-b52f-5500-8e51-a9b4b15fd9ef",
+        "observed_state": "도입 검토; 계약 없음"
+      }
+    ],
+    "previous_reports": [
+      {
+        "sales_deal_id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "report_date": "2026-06-01",
+        "body": "초기 검토 대상은 세 거점의 영업·화주 응대 40명이며 기사 계정은 제외됩니다. 연 3,000만 원은 승인 전 검토예산이며 회신시간의 현재 기준값은 아직 없습니다.",
+        "submission_id": "90a38d4b-50cd-538f-a08c-b7598d6431f4"
+      },
+      {
+        "sales_deal_id": "10a6f8f9-0362-5a51-ac53-ccd1b229fee0",
+        "report_date": "2026-06-01",
+        "body": "WMS 출고 상태와 고객 인수 완료는 다르며 API 제공 여부는 미확정입니다. 비식별 테스트 주문 10건에 재전송 사례를 포함해 중복 집계를 확인합니다.",
+        "submission_id": "90a38d4b-50cd-538f-a08c-b7598d6431f4"
+      },
+      {
+        "sales_deal_id": "bcd8026f-b8e7-5380-9579-7486b4dbec85",
+        "report_date": "2026-06-08",
+        "body": "40명 전체 도입은 미승인이고 한 거점 12명 유료 시범으로 견적 재요청합니다. 12명 시범은 문의20건 중18건 이상에서 담당자·최종답변 검색 성공을 기준으로 합니다. 6월 11일까지 12명·1거점·수동파일 조건의 수정 견적을 요청하며 고객 검토회의 날짜는 미정입니다.",
+        "submission_id": "5b844dc4-4f39-5d23-b794-2fee3c156a40"
+      },
+      {
+        "sales_deal_id": "10a6f8f9-0362-5a51-ac53-ccd1b229fee0",
+        "report_date": "2026-06-08",
+        "body": "API 개발은 시범에서 제외하며 수동 파일 업로드로 시험하고 연동 딜은 보류합니다. 파일 반영 지연 상태에서는 미출고·배송완료를 자동 확정하지 않습니다.",
+        "submission_id": "5b844dc4-4f39-5d23-b794-2fee3c156a40"
+      }
+    ],
+    "trade_history": []
+  },
+  "attachments": []
+}

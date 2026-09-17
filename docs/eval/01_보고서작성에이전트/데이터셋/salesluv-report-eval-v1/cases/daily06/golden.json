@@ -1,0 +1,172 @@
+{
+  "case_id": "daily06",
+  "report_kind": "daily",
+  "facts": [
+    {
+      "id": "daily06-f01",
+      "claim": "목록 접근차단은 확인됐으나 공유링크가 다른점포 계정에서 열리는 문제가 발견됐습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "목록 접근차단은 확인됐으나 공유링크가 다른점포 계정에서 열리는 문제가 발견됐습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f02",
+      "claim": "공유권한 문제 해결 전 정산자료 연결을 보류하며 실제정산자료는 미전달입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "공유권한 문제 해결 전 정산자료 연결을 보류하며 실제정산자료는 미전달입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f03",
+      "claim": "점주교육 일정·참석자는 미정이고 본사 권한검토 설명만 먼저 요청합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "점주교육 일정·참석자는 미정이고 본사 권한검토 설명만 먼저 요청합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f04",
+      "claim": "6월15일까지 교차점포 링크거절·폐기링크 차단 결과를 요청합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[0].common_report.body",
+          "quote": "6월15일까지 교차점포 링크거절·폐기링크 차단 결과를 요청합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f05",
+      "claim": "프로젝트1건은 고객 가동시간으로3일 연기,1건은 담당자 병가로 재조정 중이며 취소 통보는 없습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "프로젝트1건은 고객 가동시간으로3일 연기,1건은 담당자 병가로 재조정 중이며 취소 통보는 없습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f06",
+      "claim": "관리자2명 다운로드·일반사용자 조회·이력확인 조건을 시험하기 전 실도면은 미제공입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "관리자2명 다운로드·일반사용자 조회·이력확인 조건을 시험하기 전 실도면은 미제공입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f07",
+      "claim": "6건 중1건의 복수 대기사유 표시 보완이 필요합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "6건 중1건의 복수 대기사유 표시 보완이 필요합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f08",
+      "claim": "미정 일정은 담당자 회신 전 비워 두며 사업장 식별번호로 일정 혼입을 방지해야 합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "미정 일정은 담당자 회신 전 비워 두며 사업장 식별번호로 일정 혼입을 방지해야 합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f09",
+      "claim": "6월15일까지 복수사유 표시와 관리자외 다운로드 차단 시험 결과를 요청합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "6월15일까지 복수사유 표시와 관리자외 다운로드 차단 시험 결과를 요청합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f10",
+      "claim": "대표는9명 월단위 해지가능안을 우선 요청하며 연간계약은 미승인입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[6].values.body",
+          "quote": "대표는9명 월단위 해지가능안을 우선 요청하며 연간계약은 미승인입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f11",
+      "claim": "3건 중1건의 세로형 영상 추가가 기존 수정으로 잘못분류되어 새산출물로 수정해야 합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[7].values.body",
+          "quote": "3건 중1건의 세로형 영상 추가가 기존 수정으로 잘못분류되어 새산출물로 수정해야 합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f12",
+      "claim": "교육은 견적분류 수정 후 검토하며 비용·날짜는 미정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[8].values.body",
+          "quote": "교육은 견적분류 수정 후 검토하며 비용·날짜는 미정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily06-f13",
+      "claim": "6월15일까지 초기비·월료·중도해지 조건안과 신규산출물 수정화면을 요청합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[2].common_report.body",
+          "quote": "6월15일까지 초기비·월료·중도해지 조건안과 신규산출물 수정화면을 요청합니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "daily06-f01",
+    "daily06-f02",
+    "daily06-f03",
+    "daily06-f04",
+    "daily06-f05",
+    "daily06-f06",
+    "daily06-f07",
+    "daily06-f08",
+    "daily06-f09",
+    "daily06-f10",
+    "daily06-f11",
+    "daily06-f12",
+    "daily06-f13"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "오늘 활동→거래처별 결과→미완료·문제→다음 업무. 원문 반복과 중복 집계를 피합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

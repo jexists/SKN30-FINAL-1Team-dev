@@ -1,0 +1,166 @@
+{
+  "report_kind": "daily",
+  "report_date": "2026-06-26",
+  "period_start": null,
+  "period_end": null,
+  "sales_deal_id": null,
+  "template_snapshot": {
+    "fields": [
+      {
+        "id": "body",
+        "label": "본문"
+      }
+    ]
+  },
+  "content": {
+    "values": {}
+  },
+  "transcript": null,
+  "guidance": null,
+  "report_sources": {
+    "reports": [
+      {
+        "id": "16d0a40d-11b1-5b51-b67b-82f9729b9857",
+        "submission_id": "f4e6563b-7c31-5167-a402-b0ba13ed872b",
+        "source_activity_id": "16d0a40d-11b1-5b51-b67b-82f9729b9857",
+        "report_date": "2026-06-26",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "title": "가맹점 지원 CRM",
+        "values": {
+          "body": "수정제안은 수신됐으나 본사·점주 책임정책 미정으로 구매결정 보류이며 계약 미체결입니다."
+        }
+      },
+      {
+        "id": "16d0a40d-11b1-5b51-b67b-82f9729b9857",
+        "submission_id": "f4e6563b-7c31-5167-a402-b0ba13ed872b",
+        "source_activity_id": "16d0a40d-11b1-5b51-b67b-82f9729b9857",
+        "report_date": "2026-06-26",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+        "title": "정산내역 조회 연동",
+        "values": {
+          "body": "정산연동은 공개승인 책임·일정 미정으로 보류 유지입니다."
+        }
+      },
+      {
+        "id": "16d0a40d-11b1-5b51-b67b-82f9729b9857",
+        "submission_id": "f4e6563b-7c31-5167-a402-b0ba13ed872b",
+        "source_activity_id": "16d0a40d-11b1-5b51-b67b-82f9729b9857",
+        "report_date": "2026-06-26",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "9997f1de-d368-5518-a8e2-aa982fdb4158",
+        "title": "점주 이용 교육",
+        "values": {
+          "body": "교육 일정과 운영정책 회의일은 미정이며 민채원이 회의를 요청할 예정입니다."
+        }
+      },
+      {
+        "id": "a4dc34ac-f007-52c8-8ed9-3a695a75c0e7",
+        "submission_id": "dca22a18-07f2-553a-bea3-827ebda3ad75",
+        "source_activity_id": "a4dc34ac-f007-52c8-8ed9-3a695a75c0e7",
+        "report_date": "2026-06-26",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "title": "프로젝트 영업 CRM",
+        "values": {
+          "body": "재무는 제한시범 후 다음달 판단 예정이며 CRM 미체결·고객승인대기2건 유지입니다."
+        }
+      },
+      {
+        "id": "a4dc34ac-f007-52c8-8ed9-3a695a75c0e7",
+        "submission_id": "dca22a18-07f2-553a-bea3-827ebda3ad75",
+        "source_activity_id": "a4dc34ac-f007-52c8-8ed9-3a695a75c0e7",
+        "report_date": "2026-06-26",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "b64a61e9-e961-5a35-b788-258dea5d9621",
+        "title": "현장조사 일정 연계",
+        "values": {
+          "body": "3일 연기된 조사는 실제완료됐고 병가로 재조정 중인1건은 일정미정이며 취소는 없습니다."
+        }
+      },
+      {
+        "id": "a4dc34ac-f007-52c8-8ed9-3a695a75c0e7",
+        "submission_id": "dca22a18-07f2-553a-bea3-827ebda3ad75",
+        "source_activity_id": "a4dc34ac-f007-52c8-8ed9-3a695a75c0e7",
+        "report_date": "2026-06-26",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "title": "보안·자료전환 지원",
+        "values": {
+          "body": "6월22일 이름·단계·일정의 제한시범만 허용됐고 실도면·계약서는 제외됩니다."
+        }
+      },
+      {
+        "id": "3f64399e-9caf-57bd-a876-ecd0a4c4596e",
+        "submission_id": "ea01e06a-4de9-554d-a74c-1e3a7dd455c7",
+        "source_activity_id": "3f64399e-9caf-57bd-a876-ecd0a4c4596e",
+        "report_date": "2026-06-26",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "56e34430-ebf2-5b29-86bc-cca406076003",
+        "title": "제작 영업 CRM",
+        "values": {
+          "body": "6월22일 CRM 시연계정 비활성화가 확인됐고 연간제안 거절상태를 유지합니다."
+        }
+      },
+      {
+        "id": "3f64399e-9caf-57bd-a876-ecd0a4c4596e",
+        "submission_id": "ea01e06a-4de9-554d-a74c-1e3a7dd455c7",
+        "source_activity_id": "3f64399e-9caf-57bd-a876-ecd0a4c4596e",
+        "report_date": "2026-06-26",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "fce17706-12aa-5c1c-bd6b-144a25b67526",
+        "title": "견적 버전 자동화",
+        "values": {
+          "body": "독립사용 가능 답변은 수신됐으나 PDF설정 검토·인력부족으로 견적도구는 보류입니다."
+        }
+      },
+      {
+        "id": "3f64399e-9caf-57bd-a876-ecd0a4c4596e",
+        "submission_id": "ea01e06a-4de9-554d-a74c-1e3a7dd455c7",
+        "source_activity_id": "3f64399e-9caf-57bd-a876-ecd0a4c4596e",
+        "report_date": "2026-06-26",
+        "period_start": null,
+        "period_end": null,
+        "sales_deal_id": "a887668f-84c1-58ec-a6fb-33a718204ea9",
+        "title": "프로듀서 이용 교육",
+        "values": {
+          "body": "교육은 미실시·보류이며 재검토 날짜는 미정입니다."
+        }
+      }
+    ],
+    "meetings": [
+      {
+        "activity_id": "16d0a40d-11b1-5b51-b67b-82f9729b9857",
+        "common_report": {
+          "body": "다음달 선행과제는 입력·확인·공개승인 책임정책 결정입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "a4dc34ac-f007-52c8-8ed9-3a695a75c0e7",
+        "common_report": {
+          "body": "백도하는6월29일까지6개프로젝트 제한시범 평가항목을 정리할 예정입니다."
+        },
+        "unassigned_report": null
+      },
+      {
+        "activity_id": "3f64399e-9caf-57bd-a876-ecd0a4c4596e",
+        "common_report": {
+          "body": "6월29일까지 영업 담당자가 PDF기본서식·추가설정 항목표를 전달할 예정입니다."
+        },
+        "unassigned_report": null
+      }
+    ],
+    "activities": []
+  },
+  "attachments": []
+}

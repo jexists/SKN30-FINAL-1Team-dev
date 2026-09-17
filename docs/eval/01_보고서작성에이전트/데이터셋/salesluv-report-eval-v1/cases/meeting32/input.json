@@ -1,0 +1,1175 @@
+{
+  "transcript": "영업 담당자: 오늘은 현장에서 받은 의견과 다음 달에 다시 살펴볼 예산·연동 과제를 중심으로 말씀드리겠습니다. 안내자료를 받아 보신 뒤 실제로 몇 분에게 의견을 들으셨는지부터 확인해도 될까요?\n장하람: 자료를 받은 뒤 세 명에게 보여 줬습니다. 세 사람의 반응이 모두 같지는 않았고, 그중 한 명은 화면에서 승인상태라는 글자가 잘 읽히지 않는다고 했어요.\n영업 담당자: 세 명의 의견을 받았고, 그중 한 명이 승인상태 글자의 가독성 개선을 요청한 상황이군요. 이 단계는 모바일 영업 교육을 실제로 진행했다기보다, 안내자료를 보고 화면에 대한 의견을 모은 단계로 이해하면 될까요?\n장하람: 맞습니다. 교육을 실시한 것은 아니고 화면을 보여 주고 반응을 들은 겁니다. 특히 외근 중 작은 화면으로 볼 때 글자가 더 작게 느껴진다는 의견이었습니다.\n영업 담당자: 그렇다면 교육 이수나 현장 적용으로 보기보다는, 모바일 주문 상담과 인계 교육에 쓰일 화면을 사전 검토한 것으로 보겠습니다. 확대해서 승인상태가 보이는 예시를 다시 확인하고 싶으신 거죠?\n장하람: 네. 확대 화면 예시를 6월 26일까지 보내 주세요. 그 자료를 받은 뒤 처음 의견을 준 같은 세 명에게 다시 확인해 보겠습니다. 단가 적용일 표시가 도움이 된다는 의견도 있었지만, 지금은 글자 크기 문제가 먼저예요.\n영업 담당자: 알겠습니다. 6월 26일까지 확인할 확대 화면 예시와, 같은 세 명에게 다시 의견을 받을 수 있도록 필요한 범위를 맞춰 보겠습니다. 단가 적용일에 대한 반응보다 승인상태 가독성이 이번 확인의 중심이라는 점도 이해했습니다.\n장하람: 다음은 거래처 주문 CRM입니다. 사용자 수는 열여섯 명으로 검토하는 안을 그대로 가져가려고 합니다. 식당이나 급식 거래처의 주문 조건, 상담 내용, 가격 유효기간을 관리하는 범위는 필요합니다.\n영업 담당자: CRM 사용자 열여섯 명 검토는 유지하시는군요. 이 기능은 거래처의 주문 조건과 상담, 가격 유효기간을 관리하는 쪽이고, 창고의 실제 재고를 관리하는 화면과는 분리된다는 점을 기준으로 보시면 됩니다.\n장하람: 네, 그 구분이 중요합니다. 영업 쪽에서 거래처 주문 조건을 확인하는 것과 창고에 실제로 물건이 남아 있는지는 같은 정보로 보면 안 됩니다. 지난번 단가 표본 결과와 이번 현장 의견을 함께 운영회의에 올릴 생각입니다.\n영업 담당자: 그 자료를 바탕으로 운영회의에 올릴 예정이라는 말씀이시군요. 다만 현재 재무팀의 예산 승인은 아직 나지 않았고, CRM에 대해 계약서 서명이나 발주가 진행된 상태도 아닌 것으로 확인하겠습니다.\n장하람: 맞아요. 예산승인은 아직이고, 계약도 발주도 없습니다. 회의에 올릴 예정이긴 하지만 날짜가 정해진 것은 아니어서, 언제 승인될지나 언제 계약할지는 지금 말하기 어렵습니다.\n영업 담당자: 그럼 사용자 범위는 열여섯 명으로 계속 검토하되, 예산승인·계약·발주 일정은 아직 정해지지 않은 상태로 두겠습니다. 다음 달에는 우선 CRM 예산을 다시 검토하는 일이 필요하다는 점이 핵심이겠네요.\n장하람: 네. 다음 달 우선과제 중 하나는 재무팀이 CRM 예산을 검토할 수 있도록 하는 겁니다. 다만 승인됐다고 볼 수는 없고, 운영회의에 올릴 준비를 하는 수준입니다.\n장하람: 창고 쪽 연동도 확인하고 싶습니다. 가용재고 산식 자체는 맞아진 것으로 보였지만, 예약취소가 발생했을 때 그 정보가 들어오는 경로는 아직 남아 있습니다. 공급사 테스트 시간이 잡혔나요?\n영업 담당자: 아직 창고 공급사의 테스트 시간은 확정되지 않은 것으로 알고 있습니다. 가용재고 산식이 맞는지 본 부분과 예약취소 이벤트가 들어오는 경로를 검증하는 일은 나눠서 봐야 합니다.\n장하람: 그렇죠. 예약취소 연동은 테스트 시간이 정해지지 않았으니 아직 검증됐다고 말할 수 없습니다. 공급사가 다음 주에 가능한 시간을 알려 주기로 했지만, 실제 운영 데이터 연결은 열지 않았습니다.\n영업 담당자: 그러면 재고·유통기한 조회 쪽은 창고시스템의 가용재고와 로트별 유통기한을 조회하는 연동이라는 기본 범위는 두되, 예약재고를 판매가능재고에서 분리하는 흐름 중 예약취소 부분은 아직 확인 전인 상태입니다. 운영 연결도 아직 시작하지 않은 것으로 이해하겠습니다.\n장하람: 네. 예약재고가 판매가능재고에 섞이지 않아야 하는 것은 맞지만, 취소 이벤트가 실제로 들어오는지까지 확인하지 못했습니다. 창고 공급사의 테스트 지원이 다음 달 우선과제입니다.\n영업 담당자: 다음 달에는 창고 공급사에 테스트 지원을 요청하는 일이 필요하겠군요. 다만 공급사가 가능한 시간을 알려 주기 전에는 테스트 일정이나 운영 연결 시점을 정할 수 없는 상황으로 보입니다.\n장하람: 맞습니다. 시간을 먼저 받아야 합니다. 테스트가 끝났다고 가정해 재고가 정상 운영되는 것처럼 이야기하면 곤란해요. 지금은 산식 확인만 되었고 취소 연동은 미검증입니다.\n영업 담당자: 확인된 부분과 아직 열리지 않은 부분을 구분해서 보겠습니다. 가용재고 산식 확인은 현재 상태이고, 예약취소 이벤트는 테스트 시간이 미확정이라 검증 전이며, 운영 데이터 연결도 열지 않은 상태입니다.\n장하람: 그리고 다음 달 업무의 우선순위를 정리하면 CRM 예산 검토와 창고 테스트 지원이 먼저입니다. 화면 쪽에서는 승인상태가 잘 보이는 확대 예시를 받아서 세 명에게 다시 보여 주고 싶습니다.\n영업 담당자: 네. 모바일 화면 관련해서는 6월 26일까지 확대 예시를 요청하셨고, 그 뒤 같은 세 명에게 확인하실 계획입니다. CRM은 예산 검토를 위한 운영회의 상정 전 단계이고, 창고는 공급사의 테스트 지원을 기다리는 단계로 나누어 보겠습니다.\n장하람: 기능의 우선순위도 하나 더 있습니다. 다음 달에는 단가 회신에서 생기는 오류를 먼저 줄이고 싶습니다. 자동 주문 확정은 그보다 뒤로 두겠습니다. 자동 주문 확정을 이미 적용하는 것으로 이해하면 안 됩니다.\n영업 담당자: 알겠습니다. 우선은 단가 회신 오류를 줄이는 쪽이고, 자동 주문 확정은 후순위라는 기준이군요. CRM의 거래처 가격 유효기간 관리와도 연결해 검토할 수 있지만, 예산승인이나 계약이 끝났다고 전제하지 않고 현재 검토 단계에서 보겠습니다.\n장하람: 그 정도로 정리하면 됩니다. 화면 예시는 6월 26일까지 필요하고, CRM은 열여섯 명 검토를 유지하지만 재무팀 결재는 아직 없습니다. 창고 연동은 테스트 시간이 정해지기 전까지 운영에 연결하지 않을 겁니다.\n영업 담당자: 네, 현재 확인된 범위는 그렇게 나뉩니다. 모바일 교육 자료에 대한 세 명의 의견 중 한 명이 승인상태 가독성 개선을 요청했고, CRM 열여섯 명 검토는 계속하지만 예산승인·계약·발주 일정은 미정입니다. 재고 연동은 예약취소가 미검증이고 운영 연결 전이며, 다음 달에는 CRM 예산 검토와 창고 테스트 지원을 우선으로 두는 흐름입니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "fdaf4cb1cf28f196a17e4744fc03eb0d295f8622f781df2f4d290ae5923e2376",
+    "selected_deal_ids": [
+      "788723af-dea7-5981-af8c-f268c44bdfa5",
+      "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+      "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 61,
+          "text": "영업 담당자: 오늘은 현장에서 받은 의견과 다음 달에 다시 살펴볼 예산·연동 과제를 중심으로 말씀드리겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 62,
+          "end": 107,
+          "text": "안내자료를 받아 보신 뒤 실제로 몇 분에게 의견을 들으셨는지부터 확인해도 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 108,
+          "end": 136,
+          "text": "장하람: 자료를 받은 뒤 세 명에게 보여 줬습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 137,
+          "end": 198,
+          "text": "세 사람의 반응이 모두 같지는 않았고, 그중 한 명은 화면에서 승인상태라는 글자가 잘 읽히지 않는다고 했어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 199,
+          "end": 256,
+          "text": "영업 담당자: 세 명의 의견을 받았고, 그중 한 명이 승인상태 글자의 가독성 개선을 요청한 상황이군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 257,
+          "end": 323,
+          "text": "이 단계는 모바일 영업 교육을 실제로 진행했다기보다, 안내자료를 보고 화면에 대한 의견을 모은 단계로 이해하면 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 324,
+          "end": 334,
+          "text": "장하람: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 335,
+          "end": 371,
+          "text": "교육을 실시한 것은 아니고 화면을 보여 주고 반응을 들은 겁니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 372,
+          "end": 415,
+          "text": "특히 외근 중 작은 화면으로 볼 때 글자가 더 작게 느껴진다는 의견이었습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 416,
+          "end": 493,
+          "text": "영업 담당자: 그렇다면 교육 이수나 현장 적용으로 보기보다는, 모바일 주문 상담과 인계 교육에 쓰일 화면을 사전 검토한 것으로 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 494,
+          "end": 528,
+          "text": "확대해서 승인상태가 보이는 예시를 다시 확인하고 싶으신 거죠?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 529,
+          "end": 536,
+          "text": "장하람: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 537,
+          "end": 563,
+          "text": "확대 화면 예시를 6월 26일까지 보내 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 564,
+          "end": 606,
+          "text": "그 자료를 받은 뒤 처음 의견을 준 같은 세 명에게 다시 확인해 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 607,
+          "end": 655,
+          "text": "단가 적용일 표시가 도움이 된다는 의견도 있었지만, 지금은 글자 크기 문제가 먼저예요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 656,
+          "end": 670,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 671,
+          "end": 737,
+          "text": "6월 26일까지 확인할 확대 화면 예시와, 같은 세 명에게 다시 의견을 받을 수 있도록 필요한 범위를 맞춰 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 738,
+          "end": 787,
+          "text": "단가 적용일에 대한 반응보다 승인상태 가독성이 이번 확인의 중심이라는 점도 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 788,
+          "end": 811,
+          "text": "장하람: 다음은 거래처 주문 CRM입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 812,
+          "end": 849,
+          "text": "사용자 수는 열여섯 명으로 검토하는 안을 그대로 가져가려고 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 850,
+          "end": 901,
+          "text": "식당이나 급식 거래처의 주문 조건, 상담 내용, 가격 유효기간을 관리하는 범위는 필요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 902,
+          "end": 936,
+          "text": "영업 담당자: CRM 사용자 열여섯 명 검토는 유지하시는군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 937,
+          "end": 1021,
+          "text": "이 기능은 거래처의 주문 조건과 상담, 가격 유효기간을 관리하는 쪽이고, 창고의 실제 재고를 관리하는 화면과는 분리된다는 점을 기준으로 보시면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 1022,
+          "end": 1042,
+          "text": "장하람: 네, 그 구분이 중요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1043,
+          "end": 1105,
+          "text": "영업 쪽에서 거래처 주문 조건을 확인하는 것과 창고에 실제로 물건이 남아 있는지는 같은 정보로 보면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1106,
+          "end": 1148,
+          "text": "지난번 단가 표본 결과와 이번 현장 의견을 함께 운영회의에 올릴 생각입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1149,
+          "end": 1190,
+          "text": "영업 담당자: 그 자료를 바탕으로 운영회의에 올릴 예정이라는 말씀이시군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1191,
+          "end": 1264,
+          "text": "다만 현재 재무팀의 예산 승인은 아직 나지 않았고, CRM에 대해 계약서 서명이나 발주가 진행된 상태도 아닌 것으로 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1265,
+          "end": 1274,
+          "text": "장하람: 맞아요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1275,
+          "end": 1300,
+          "text": "예산승인은 아직이고, 계약도 발주도 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1301,
+          "end": 1365,
+          "text": "회의에 올릴 예정이긴 하지만 날짜가 정해진 것은 아니어서, 언제 승인될지나 언제 계약할지는 지금 말하기 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1366,
+          "end": 1438,
+          "text": "영업 담당자: 그럼 사용자 범위는 열여섯 명으로 계속 검토하되, 예산승인·계약·발주 일정은 아직 정해지지 않은 상태로 두겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1439,
+          "end": 1484,
+          "text": "다음 달에는 우선 CRM 예산을 다시 검토하는 일이 필요하다는 점이 핵심이겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1485,
+          "end": 1492,
+          "text": "장하람: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1493,
+          "end": 1539,
+          "text": "다음 달 우선과제 중 하나는 재무팀이 CRM 예산을 검토할 수 있도록 하는 겁니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1540,
+          "end": 1580,
+          "text": "다만 승인됐다고 볼 수는 없고, 운영회의에 올릴 준비를 하는 수준입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1581,
+          "end": 1605,
+          "text": "장하람: 창고 쪽 연동도 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1606,
+          "end": 1671,
+          "text": "가용재고 산식 자체는 맞아진 것으로 보였지만, 예약취소가 발생했을 때 그 정보가 들어오는 경로는 아직 남아 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1672,
+          "end": 1689,
+          "text": "공급사 테스트 시간이 잡혔나요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1690,
+          "end": 1737,
+          "text": "영업 담당자: 아직 창고 공급사의 테스트 시간은 확정되지 않은 것으로 알고 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1738,
+          "end": 1795,
+          "text": "가용재고 산식이 맞는지 본 부분과 예약취소 이벤트가 들어오는 경로를 검증하는 일은 나눠서 봐야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1796,
+          "end": 1805,
+          "text": "장하람: 그렇죠."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 1806,
+          "end": 1852,
+          "text": "예약취소 연동은 테스트 시간이 정해지지 않았으니 아직 검증됐다고 말할 수 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 1853,
+          "end": 1907,
+          "text": "공급사가 다음 주에 가능한 시간을 알려 주기로 했지만, 실제 운영 데이터 연결은 열지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 1908,
+          "end": 2028,
+          "text": "영업 담당자: 그러면 재고·유통기한 조회 쪽은 창고시스템의 가용재고와 로트별 유통기한을 조회하는 연동이라는 기본 범위는 두되, 예약재고를 판매가능재고에서 분리하는 흐름 중 예약취소 부분은 아직 확인 전인 상태입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 2029,
+          "end": 2059,
+          "text": "운영 연결도 아직 시작하지 않은 것으로 이해하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 2060,
+          "end": 2067,
+          "text": "장하람: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 2068,
+          "end": 2132,
+          "text": "예약재고가 판매가능재고에 섞이지 않아야 하는 것은 맞지만, 취소 이벤트가 실제로 들어오는지까지 확인하지 못했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 2133,
+          "end": 2162,
+          "text": "창고 공급사의 테스트 지원이 다음 달 우선과제입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0050",
+          "start": 2163,
+          "end": 2209,
+          "text": "영업 담당자: 다음 달에는 창고 공급사에 테스트 지원을 요청하는 일이 필요하겠군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0051",
+          "start": 2210,
+          "end": 2273,
+          "text": "다만 공급사가 가능한 시간을 알려 주기 전에는 테스트 일정이나 운영 연결 시점을 정할 수 없는 상황으로 보입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0052",
+          "start": 2274,
+          "end": 2284,
+          "text": "장하람: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0053",
+          "start": 2285,
+          "end": 2300,
+          "text": "시간을 먼저 받아야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0054",
+          "start": 2301,
+          "end": 2342,
+          "text": "테스트가 끝났다고 가정해 재고가 정상 운영되는 것처럼 이야기하면 곤란해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0055",
+          "start": 2343,
+          "end": 2372,
+          "text": "지금은 산식 확인만 되었고 취소 연동은 미검증입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0056",
+          "start": 2373,
+          "end": 2414,
+          "text": "영업 담당자: 확인된 부분과 아직 열리지 않은 부분을 구분해서 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0057",
+          "start": 2415,
+          "end": 2491,
+          "text": "가용재고 산식 확인은 현재 상태이고, 예약취소 이벤트는 테스트 시간이 미확정이라 검증 전이며, 운영 데이터 연결도 열지 않은 상태입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0058",
+          "start": 2492,
+          "end": 2549,
+          "text": "장하람: 그리고 다음 달 업무의 우선순위를 정리하면 CRM 예산 검토와 창고 테스트 지원이 먼저입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0059",
+          "start": 2550,
+          "end": 2601,
+          "text": "화면 쪽에서는 승인상태가 잘 보이는 확대 예시를 받아서 세 명에게 다시 보여 주고 싶습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0060",
+          "start": 2602,
+          "end": 2612,
+          "text": "영업 담당자: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0061",
+          "start": 2613,
+          "end": 2673,
+          "text": "모바일 화면 관련해서는 6월 26일까지 확대 예시를 요청하셨고, 그 뒤 같은 세 명에게 확인하실 계획입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0062",
+          "start": 2674,
+          "end": 2741,
+          "text": "CRM은 예산 검토를 위한 운영회의 상정 전 단계이고, 창고는 공급사의 테스트 지원을 기다리는 단계로 나누어 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0063",
+          "start": 2742,
+          "end": 2767,
+          "text": "장하람: 기능의 우선순위도 하나 더 있습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0064",
+          "start": 2768,
+          "end": 2803,
+          "text": "다음 달에는 단가 회신에서 생기는 오류를 먼저 줄이고 싶습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0065",
+          "start": 2804,
+          "end": 2827,
+          "text": "자동 주문 확정은 그보다 뒤로 두겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0066",
+          "start": 2828,
+          "end": 2861,
+          "text": "자동 주문 확정을 이미 적용하는 것으로 이해하면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0067",
+          "start": 2862,
+          "end": 2876,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0068",
+          "start": 2877,
+          "end": 2922,
+          "text": "우선은 단가 회신 오류를 줄이는 쪽이고, 자동 주문 확정은 후순위라는 기준이군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0069",
+          "start": 2923,
+          "end": 3001,
+          "text": "CRM의 거래처 가격 유효기간 관리와도 연결해 검토할 수 있지만, 예산승인이나 계약이 끝났다고 전제하지 않고 현재 검토 단계에서 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0070",
+          "start": 3002,
+          "end": 3022,
+          "text": "장하람: 그 정도로 정리하면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0071",
+          "start": 3023,
+          "end": 3082,
+          "text": "화면 예시는 6월 26일까지 필요하고, CRM은 열여섯 명 검토를 유지하지만 재무팀 결재는 아직 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0072",
+          "start": 3083,
+          "end": 3123,
+          "text": "창고 연동은 테스트 시간이 정해지기 전까지 운영에 연결하지 않을 겁니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0073",
+          "start": 3124,
+          "end": 3155,
+          "text": "영업 담당자: 네, 현재 확인된 범위는 그렇게 나뉩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0074",
+          "start": 3156,
+          "end": 3245,
+          "text": "모바일 교육 자료에 대한 세 명의 의견 중 한 명이 승인상태 가독성 개선을 요청했고, CRM 열여섯 명 검토는 계속하지만 예산승인·계약·발주 일정은 미정입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0075",
+          "start": 3246,
+          "end": 3319,
+          "text": "재고 연동은 예약취소가 미검증이고 운영 연결 전이며, 다음 달에는 CRM 예산 검토와 창고 테스트 지원을 우선으로 두는 흐름입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "788723af-dea7-5981-af8c-f268c44bdfa5",
+            "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+            "d5d69129-86e8-5deb-b330-3160ce2fbc8e"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-24T11:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "47abf18a-4eea-5aec-83c6-a375be2f1273",
+      "name": "새결푸드(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "7dc5c53a-1b7b-50ec-98a4-0b13b6844657",
+      "name": "장하람(가상)"
+    },
+    "activity": {
+      "id": "44816f32-b110-5ff0-9888-1fdfb7b3d65e",
+      "starts_at": "2026-06-24T11:00:00+09:00",
+      "title": "현장 의견 수신과 다음 달 예산 재검토"
+    },
+    "deals": [
+      {
+        "id": "788723af-dea7-5981-af8c-f268c44bdfa5",
+        "company_id": "company05",
+        "contact_id": "contact05",
+        "title": "거래처 주문 CRM",
+        "description": "식당·급식 거래처의 주문 조건, 상담, 가격 유효기간을 관리하는 CRM. 창고의 실제 재고와 분리.",
+        "deal_amount": 22000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "788723af-dea7-5981-af8c-f268c44bdfa5",
+        "observed_state": "예산 우선순위로 다음달 재검토"
+      },
+      {
+        "id": "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+        "company_id": "company05",
+        "contact_id": "contact05",
+        "title": "재고·유통기한 조회",
+        "description": "창고시스템의 가용재고와 로트별 유통기한을 조회하는 연동. 예약재고를 판매가능재고에서 분리.",
+        "deal_amount": 9000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+        "observed_state": "수량오류 수정;예약취소 검증 대기"
+      },
+      {
+        "id": "d5d69129-86e8-5deb-b330-3160ce2fbc8e",
+        "company_id": "company05",
+        "contact_id": "contact05",
+        "title": "모바일 영업 교육",
+        "description": "외근 담당자의 모바일 주문 상담 기록과 인계 교육.",
+        "deal_amount": 3500000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "d5d69129-86e8-5deb-b330-3160ce2fbc8e",
+        "observed_state": "유료교육 미신청;안내자료 요청"
+      }
+    ],
+    "previous_reports": [
+      {
+        "sales_deal_id": "788723af-dea7-5981-af8c-f268c44bdfa5",
+        "report_date": "2026-06-03",
+        "body": "CRM은 영업16명·단가수정 팀장2명 권한으로 검토합니다. 연2,200만 원은 승인 전 검토예산이며 오프라인 단가 확인시각 표시를 요구합니다.",
+        "submission_id": "1273141c-1189-55e1-8d0b-68ec0d864aad"
+      },
+      {
+        "sales_deal_id": "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+        "report_date": "2026-06-03",
+        "body": "실물120박스 중 예약20박스를 제외한 가용재고는100박스이며 로트별 기한 조회가 필요합니다.",
+        "submission_id": "1273141c-1189-55e1-8d0b-68ec0d864aad"
+      },
+      {
+        "sales_deal_id": "788723af-dea7-5981-af8c-f268c44bdfa5",
+        "report_date": "2026-06-10",
+        "body": "CRM 단가8건은 검증됐고 재고 화면은 오류 수정 전 숨기기로 했습니다. 단가승인팀장2명은개별계정으로승인하고 시각을남겨야합니다. 부분취소는해당품목·수량만변경하고 잔여품목단가와이전금액이력을보존해야합니다. 접수·승인중가격기준시각은팀장결정전미정입니다.",
+        "submission_id": "6c214f5f-e717-5628-a33f-50c275d94ce3"
+      },
+      {
+        "sales_deal_id": "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+        "report_date": "2026-06-10",
+        "body": "가용재고가 잘못140박스로 표시됐고 올바른 값은120-20=100박스입니다. 시험상 예약20중5취소 시 실물120·예약15·가용105박스가 기대값입니다. 10시파일이후늦은9시파일수신 시 재고가과거값으로되돌아가지않는시험을 요구합니다. 로트별수량·기한조회는필요하지만 CRM자동로트배정은 범위밖입니다. 재고조회실패시 문의메모는허용하고 수량확정은보류하며 실패를재고0으로해석하지않습니다.",
+        "submission_id": "6c214f5f-e717-5628-a33f-50c275d94ce3"
+      },
+      {
+        "sales_deal_id": "788723af-dea7-5981-af8c-f268c44bdfa5",
+        "report_date": "2026-06-17",
+        "body": "창고 장비 예산이 우선 배정되어 CRM 구매는 다음 달 재검토로 미뤄졌습니다.",
+        "submission_id": "c1def27f-335b-5bf5-ad48-303fb7128db6"
+      },
+      {
+        "sales_deal_id": "dbf0be75-01ab-517e-b5d5-4169fd7e2f1d",
+        "report_date": "2026-06-17",
+        "body": "가용100박스 수정은 확인됐으나 예약취소 갱신 검증과 운영사용 결정은 남아 있습니다.",
+        "submission_id": "c1def27f-335b-5bf5-ad48-303fb7128db6"
+      },
+      {
+        "sales_deal_id": "d5d69129-86e8-5deb-b330-3160ce2fbc8e",
+        "report_date": "2026-06-17",
+        "body": "유료 모바일교육은 신청하지 않고 로그인·승인단가·오프라인 표시 안내자료만 요청합니다.",
+        "submission_id": "c1def27f-335b-5bf5-ad48-303fb7128db6"
+      }
+    ],
+    "trade_history": []
+  },
+  "attachments": []
+}

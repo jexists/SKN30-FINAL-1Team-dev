@@ -1,0 +1,103 @@
+{
+  "case_id": "meeting33",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting33-f01",
+      "claim": "6월24일 CRM1,500만 원 계약 서명 완료,750만 원씩7월6일·10월6일 분납이며 입금은 미확인입니다.",
+      "sales_deal_id": "deal06-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting33.txt",
+          "start": 2870,
+          "end": 2960,
+          "quote": "마지막으로 제가 확인할 내용은 세 가지입니다. CRM은 1,500만 원에 부가세 별도, 750만 원씩 7월 6일과 10월 6일 분납이며 입금은 아직 미확인입니다.",
+          "segment_ids": [
+            "S0071",
+            "S0072"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting33-f01"
+    },
+    {
+      "id": "meeting33-f02",
+      "claim": "장비대장 연동은 원본정리 전 보류하고 자료마감일은 미정입니다.",
+      "sales_deal_id": "deal06-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting33.txt",
+          "start": 2961,
+          "end": 2992,
+          "quote": "장비대장 연동은 원본 정리와 자료 마감일 협의가 먼저이고",
+          "segment_ids": [
+            "S0073"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting33-f02"
+    },
+    {
+      "id": "meeting33-f03",
+      "claim": "야간지원 예산은 미승인이고30분 접수목표와 실제 야간서비스 계약은 분리되어 있습니다.",
+      "sales_deal_id": "deal06-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting33.txt",
+          "start": 2994,
+          "end": 3031,
+          "quote": "장애 연락은 30분 접수 안내 목표와 야간서비스 계약을 구분합니다.",
+          "segment_ids": [
+            "S0073"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting33-f03"
+    },
+    {
+      "id": "meeting33-f04",
+      "claim": "류온재는6월26일까지 연락·권한목록,영업 담당자는6월29일까지 역할별 접근검증을 할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting33.txt",
+          "start": 3040,
+          "end": 3107,
+          "quote": "그리고 저는 6월 26일까지 연락·권한 목록을 보내고, 영업 담당자는 6월 29일까지 역할별 접근을 확인하는 일정입니다.",
+          "segment_ids": [
+            "S0075"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting33-f04"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting33-f01",
+    "meeting33-f02",
+    "meeting33-f03",
+    "meeting33-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

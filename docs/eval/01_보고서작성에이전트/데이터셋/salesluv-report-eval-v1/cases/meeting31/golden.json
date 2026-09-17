@@ -1,0 +1,128 @@
+{
+  "case_id": "meeting31",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting31-f01",
+      "claim": "10명 운영계정 접근검증이6월22일 완료됐으며 지난주 계약의 이행이지 신규계약이 아닙니다.",
+      "sales_deal_id": "deal04-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting31.txt",
+          "start": 113,
+          "end": 245,
+          "quote": "네, 6월 19일에 전달한 권한 목록을 기준으로 열 명 모두 지정된 권한으로 접속되는 것을 6월 22일에 확인했습니다. 다만 이는 지난주 체결한 수강 상담 CRM 계약을 실행하면서 확인된 내용이지, 이번 주에 새로 맺은 계약은 아닙니다.",
+          "segment_ids": [
+            "S0003",
+            "S0004"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting31-f01"
+    },
+    {
+      "id": "meeting31-f02",
+      "claim": "교육은 미실시이며 일정·비용승인은 대기 중으로 계정접속 완료와 구분합니다.",
+      "sales_deal_id": "deal04-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting31.txt",
+          "start": 346,
+          "end": 457,
+          "quote": "별개입니다. 계정 접근은 완료됐지만, 등록·변경·취소 상담을 실제로 실습하는 교육은 아직 실시하지 않았습니다. 교육 날짜와 비용 승인도 아직 대기 중이라, 현재 상태를 교육 완료로 보기는 어렵습니다.",
+          "segment_ids": [
+            "S0007",
+            "S0008",
+            "S0009"
+          ]
+        },
+        {
+          "path": "transcripts/meeting31.txt",
+          "start": 538,
+          "end": 629,
+          "quote": "우선 참석 가능성이 있는 인원은 네 명이지만, 그 순서까지 최종 확정된 것은 아닙니다. 다음 달에는 실습교육을 준비할 예정이며, 구체적인 날짜는 확인이 필요합니다.",
+          "segment_ids": [
+            "S0012",
+            "S0013"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting31-f02"
+    },
+    {
+      "id": "meeting31-f03",
+      "claim": "문시우는6월26일까지 취소2건·인계1건의 개시 전 테스트 결과를 전달할 예정입니다.",
+      "sales_deal_id": "deal04-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting31.txt",
+          "start": 757,
+          "end": 896,
+          "quote": "가능합니다. 7월 1일 개시 전에 취소 상담 두 건과 담당자 부재 상황의 인계 한 건을 개시 전 테스트로 다시 확인하겠습니다. 문시우님이 6월 26일까지 그 테스트 결과를 전달하고, 문제가 확인되면 개시 전에 조치를 요청하는 일정으로 말씀하셨습니다.",
+          "segment_ids": [
+            "S0017",
+            "S0018",
+            "S0019"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting31-f03"
+    },
+    {
+      "id": "meeting31-f04",
+      "claim": "관리자에게 필요한 다음 결정은 교육비와 참석시간 확보이며 미확정 연동비는 계약금액에 합산하지 않습니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting31.txt",
+          "start": 1184,
+          "end": 1271,
+          "quote": "현재 필요한 결정은 상담사 실습 교육비를 승인할지와 교육에 참여할 시간을 확보할지입니다. 이는 이미 진행 중인 CRM 계약을 다시 승인하는 문제는 아닙니다.",
+          "segment_ids": [
+            "S0026",
+            "S0027"
+          ]
+        },
+        {
+          "path": "transcripts/meeting31.txt",
+          "start": 1425,
+          "end": 1538,
+          "quote": "그 비용은 다른 공급사의 답변을 기다리는 중이라 이번 회의에서 예상 금액을 확정할 수 없습니다. 확인되지 않은 연동비는 기존 계약금액에 임의로 더하거나 빼지 않고, 답변이 온 뒤 별도로 검토해야 합니다.",
+          "segment_ids": [
+            "S0031",
+            "S0032"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting31-f04"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting31-f01",
+    "meeting31-f02",
+    "meeting31-f03",
+    "meeting31-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

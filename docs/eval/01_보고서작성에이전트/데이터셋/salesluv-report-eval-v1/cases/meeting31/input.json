@@ -1,0 +1,605 @@
+{
+  "transcript": "문시우: 지난 6월 22일에 운영 계정 확인이 끝났다고 들었습니다. 열 명이 모두 실제로 접속한 상태인지, 그리고 이번 주에 별도 계약이 발생한 것으로 봐야 하는지부터 확인하고 싶습니다.\n영업 담당자: 네, 6월 19일에 전달한 권한 목록을 기준으로 열 명 모두 지정된 권한으로 접속되는 것을 6월 22일에 확인했습니다. 다만 이는 지난주 체결한 수강 상담 CRM 계약을 실행하면서 확인된 내용이지, 이번 주에 새로 맺은 계약은 아닙니다.\n문시우: 그럼 계정에 들어갈 수 있다는 것과 상담 업무를 실제로 연습했다는 것은 별개인가요? 내부에서는 로그인까지 됐으니 교육도 진행된 것으로 오해할 수 있어서요.\n영업 담당자: 별개입니다. 계정 접근은 완료됐지만, 등록·변경·취소 상담을 실제로 실습하는 교육은 아직 실시하지 않았습니다. 교육 날짜와 비용 승인도 아직 대기 중이라, 현재 상태를 교육 완료로 보기는 어렵습니다.\n문시우: 참석자는 신규 상담사 네 명을 먼저 넣는 방향을 생각하고 있습니다. 그 네 명이 우선 교육을 받는 것으로 보면 될까요?\n영업 담당자: 우선 참석 가능성이 있는 인원은 네 명이지만, 그 순서까지 최종 확정된 것은 아닙니다. 다음 달에는 실습교육을 준비할 예정이며, 구체적인 날짜는 확인이 필요합니다. 일정과 비용 승인이 정리돼야 교육을 진행할 수 있습니다.\n문시우: 교육과는 별도로, 실제 개시 전에 CRM 쪽 상담 흐름을 다시 시험해 보고 싶습니다. 취소 상담과 담당자가 없을 때의 인계도 포함할 수 있을까요?\n영업 담당자: 가능합니다. 7월 1일 개시 전에 취소 상담 두 건과 담당자 부재 상황의 인계 한 건을 개시 전 테스트로 다시 확인하겠습니다. 문시우님이 6월 26일까지 그 테스트 결과를 전달하고, 문제가 확인되면 개시 전에 조치를 요청하는 일정으로 말씀하셨습니다.\n문시우: 그 테스트 결과가 나오면 운영이 안정됐다고 판단할 수 있을까요? 상담 처리시간이 줄었는지도 함께 보고 싶습니다.\n영업 담당자: 이번에 확인할 수 있는 범위는 취소 두 건과 인계 한 건에 대한 개시 전 테스트입니다. 아직 실제 운영실적이나 상담 처리시간 개선 수치를 제시할 단계는 아니므로, 계정 접근 검증과 테스트 결과는 구분해야 합니다.\n문시우: 관리자에게 지금 결정이 필요한 항목은 무엇인가요? CRM 계약 자체를 다시 결재받아야 하는지, 아니면 교육 쪽만 정리하면 되는지 헷갈립니다.\n영업 담당자: 현재 필요한 결정은 상담사 실습 교육비를 승인할지와 교육에 참여할 시간을 확보할지입니다. 이는 이미 진행 중인 CRM 계약을 다시 승인하는 문제는 아닙니다. 계정 접근 확인은 CRM 계약의 이행 과정에서 다뤄지고, 교육은 별도의 준비 사항으로 남아 있습니다.\n문시우: 외부 결제조회 권한과 관련된 비용도 이번에 함께 금액을 잡아야 하나요? 아직 공급사 답변이 오지 않았다면 내부 예산을 먼저 맞춰야 할지 고민입니다.\n영업 담당자: 그 비용은 다른 공급사의 답변을 기다리는 중이라 이번 회의에서 예상 금액을 확정할 수 없습니다. 확인되지 않은 연동비는 기존 계약금액에 임의로 더하거나 빼지 않고, 답변이 온 뒤 별도로 검토해야 합니다. 우선은 교육비와 참석시간 확보 여부를 확인하는 것이 다음 결정 사항입니다.\n문시우: 정리하면, 계정은 열 명 모두 6월 22일에 접근 확인이 끝났지만 교육은 아직 날짜와 비용이 정해지지 않았고, 개시 전 테스트 결과는 6월 26일까지 전달되는 흐름이군요. 교육은 다음 달 준비 단계로 두고 날짜는 다시 확인하겠습니다.\n영업 담당자: 네, 계정 접근 확인과 교육 실시를 혼동하지 않고, 교육비와 참석시간을 먼저 확인하면 됩니다. CRM 쪽은 취소 두 건과 인계 한 건의 테스트 결과를 기다리는 상태이며, 외부 결제조회 권한 비용은 공급사 답변 전까지 계약금액에 반영하지 않습니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "464903cc0a85a08126904190773aa0f1187a0b11c178eddf1dd7106498c1c1b4",
+    "selected_deal_ids": [
+      "e87a886e-31a5-5620-860a-527d02055a31",
+      "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 37,
+          "text": "문시우: 지난 6월 22일에 운영 계정 확인이 끝났다고 들었습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 38,
+          "end": 104,
+          "text": "열 명이 모두 실제로 접속한 상태인지, 그리고 이번 주에 별도 계약이 발생한 것으로 봐야 하는지부터 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 105,
+          "end": 179,
+          "text": "영업 담당자: 네, 6월 19일에 전달한 권한 목록을 기준으로 열 명 모두 지정된 권한으로 접속되는 것을 6월 22일에 확인했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 180,
+          "end": 245,
+          "text": "다만 이는 지난주 체결한 수강 상담 CRM 계약을 실행하면서 확인된 내용이지, 이번 주에 새로 맺은 계약은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 246,
+          "end": 297,
+          "text": "문시우: 그럼 계정에 들어갈 수 있다는 것과 상담 업무를 실제로 연습했다는 것은 별개인가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 298,
+          "end": 337,
+          "text": "내부에서는 로그인까지 됐으니 교육도 진행된 것으로 오해할 수 있어서요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 338,
+          "end": 352,
+          "text": "영업 담당자: 별개입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 353,
+          "end": 407,
+          "text": "계정 접근은 완료됐지만, 등록·변경·취소 상담을 실제로 실습하는 교육은 아직 실시하지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 408,
+          "end": 457,
+          "text": "교육 날짜와 비용 승인도 아직 대기 중이라, 현재 상태를 교육 완료로 보기는 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 458,
+          "end": 500,
+          "text": "문시우: 참석자는 신규 상담사 네 명을 먼저 넣는 방향을 생각하고 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 501,
+          "end": 529,
+          "text": "그 네 명이 우선 교육을 받는 것으로 보면 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 530,
+          "end": 586,
+          "text": "영업 담당자: 우선 참석 가능성이 있는 인원은 네 명이지만, 그 순서까지 최종 확정된 것은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 587,
+          "end": 629,
+          "text": "다음 달에는 실습교육을 준비할 예정이며, 구체적인 날짜는 확인이 필요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 630,
+          "end": 661,
+          "text": "일정과 비용 승인이 정리돼야 교육을 진행할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 662,
+          "end": 714,
+          "text": "문시우: 교육과는 별도로, 실제 개시 전에 CRM 쪽 상담 흐름을 다시 시험해 보고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 715,
+          "end": 748,
+          "text": "취소 상담과 담당자가 없을 때의 인계도 포함할 수 있을까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 749,
+          "end": 763,
+          "text": "영업 담당자: 가능합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 764,
+          "end": 827,
+          "text": "7월 1일 개시 전에 취소 상담 두 건과 담당자 부재 상황의 인계 한 건을 개시 전 테스트로 다시 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 828,
+          "end": 896,
+          "text": "문시우님이 6월 26일까지 그 테스트 결과를 전달하고, 문제가 확인되면 개시 전에 조치를 요청하는 일정으로 말씀하셨습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 897,
+          "end": 937,
+          "text": "문시우: 그 테스트 결과가 나오면 운영이 안정됐다고 판단할 수 있을까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 938,
+          "end": 964,
+          "text": "상담 처리시간이 줄었는지도 함께 보고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 965,
+          "end": 1021,
+          "text": "영업 담당자: 이번에 확인할 수 있는 범위는 취소 두 건과 인계 한 건에 대한 개시 전 테스트입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 1022,
+          "end": 1091,
+          "text": "아직 실제 운영실적이나 상담 처리시간 개선 수치를 제시할 단계는 아니므로, 계정 접근 검증과 테스트 결과는 구분해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 1092,
+          "end": 1124,
+          "text": "문시우: 관리자에게 지금 결정이 필요한 항목은 무엇인가요?"
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1125,
+          "end": 1175,
+          "text": "CRM 계약 자체를 다시 결재받아야 하는지, 아니면 교육 쪽만 정리하면 되는지 헷갈립니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1176,
+          "end": 1233,
+          "text": "영업 담당자: 현재 필요한 결정은 상담사 실습 교육비를 승인할지와 교육에 참여할 시간을 확보할지입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1234,
+          "end": 1271,
+          "text": "이는 이미 진행 중인 CRM 계약을 다시 승인하는 문제는 아닙니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1272,
+          "end": 1328,
+          "text": "계정 접근 확인은 CRM 계약의 이행 과정에서 다뤄지고, 교육은 별도의 준비 사항으로 남아 있습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1329,
+          "end": 1373,
+          "text": "문시우: 외부 결제조회 권한과 관련된 비용도 이번에 함께 금액을 잡아야 하나요?"
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1374,
+          "end": 1416,
+          "text": "아직 공급사 답변이 오지 않았다면 내부 예산을 먼저 맞춰야 할지 고민입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1417,
+          "end": 1478,
+          "text": "영업 담당자: 그 비용은 다른 공급사의 답변을 기다리는 중이라 이번 회의에서 예상 금액을 확정할 수 없습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1479,
+          "end": 1538,
+          "text": "확인되지 않은 연동비는 기존 계약금액에 임의로 더하거나 빼지 않고, 답변이 온 뒤 별도로 검토해야 합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1539,
+          "end": 1580,
+          "text": "우선은 교육비와 참석시간 확보 여부를 확인하는 것이 다음 결정 사항입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1581,
+          "end": 1681,
+          "text": "문시우: 정리하면, 계정은 열 명 모두 6월 22일에 접근 확인이 끝났지만 교육은 아직 날짜와 비용이 정해지지 않았고, 개시 전 테스트 결과는 6월 26일까지 전달되는 흐름이군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31",
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1682,
+          "end": 1716,
+          "text": "교육은 다음 달 준비 단계로 두고 날짜는 다시 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31",
+            "33fdda96-b0ec-5ad0-99f3-192e905679a5"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1717,
+          "end": 1777,
+          "text": "영업 담당자: 네, 계정 접근 확인과 교육 실시를 혼동하지 않고, 교육비와 참석시간을 먼저 확인하면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1778,
+          "end": 1862,
+          "text": "CRM 쪽은 취소 두 건과 인계 한 건의 테스트 결과를 기다리는 상태이며, 외부 결제조회 권한 비용은 공급사 답변 전까지 계약금액에 반영하지 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e87a886e-31a5-5620-860a-527d02055a31"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-24T09:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "2829fd87-3860-52b0-84a2-60380f2b3ed6",
+      "name": "다온교육(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "bac5564b-2c71-5a76-924f-87fa5a3eb5d2",
+      "name": "문시우(가상)"
+    },
+    "activity": {
+      "id": "e3496453-1251-5637-8d52-a38440dcbd94",
+      "starts_at": "2026-06-24T09:00:00+09:00",
+      "title": "운영 계정 준비와 교육 일정 미정 확인"
+    },
+    "deals": [
+      {
+        "id": "e87a886e-31a5-5620-860a-527d02055a31",
+        "company_id": "company04",
+        "contact_id": "contact04",
+        "title": "수강 상담 CRM",
+        "description": "기업·개인 수강 상담을 과정 및 등록 상태와 연결하는 CRM. 실제 결제완료와 상담예약을 분리.",
+        "deal_amount": 18000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "e87a886e-31a5-5620-860a-527d02055a31",
+        "observed_state": "계약완료18,000,000KRW;운영준비"
+      },
+      {
+        "id": "33fdda96-b0ec-5ad0-99f3-192e905679a5",
+        "company_id": "company04",
+        "contact_id": "contact04",
+        "title": "상담사 실습 교육",
+        "description": "상담 담당자별 등록·변경·취소 상담을 실습하는 교육 서비스.",
+        "deal_amount": 2500000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "33fdda96-b0ec-5ad0-99f3-192e905679a5",
+        "observed_state": "교육안 동의;일정·비용 승인 대기"
+      }
+    ],
+    "previous_reports": [
+      {
+        "sales_deal_id": "e87a886e-31a5-5620-860a-527d02055a31",
+        "report_date": "2026-06-03",
+        "body": "상담예약·수강신청·결제확인을 구분하고 같은 사람의 복수과정 문의를 등록인원으로 중복 집계하지 않습니다. CRM 대상은 내부상담사10명이고 연1,800만 원은 승인 전 검토액입니다. 테스트상담12건의 담당자·약속한 연락일 누락0건이 기준이며 미정값은 임의로 채우지 않습니다.",
+        "submission_id": "7051e899-e6ea-5455-96bf-6c036217034d"
+      },
+      {
+        "sales_deal_id": "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5",
+        "report_date": "2026-06-03",
+        "body": "결제예정과 결제완료, 취소접수와 실제환불을 각각 구분하는 조회 연동을 요구합니다.",
+        "submission_id": "7051e899-e6ea-5455-96bf-6c036217034d"
+      },
+      {
+        "sales_deal_id": "e87a886e-31a5-5620-860a-527d02055a31",
+        "report_date": "2026-06-10",
+        "body": "12건 시범에서 제공된 담당자·연락일 누락은0건이며 연락일 미정2건은 미정으로 보존했습니다. 1,800만 원 예산 승인 요청은 제출됐지만 결재 중이며 계약은 미체결입니다. 고객의 결제 발언과 실제 결제확인은 별도로 보존해야 합니다.",
+        "submission_id": "b2cb0795-041a-57e1-b3ca-fdbe1bb43e44"
+      },
+      {
+        "sales_deal_id": "33fdda96-b0ec-5ad0-99f3-192e905679a5",
+        "report_date": "2026-06-10",
+        "body": "교육은 신규4명·기존6명 실습안 검토의 별도 딜이며 발주는 아직 없습니다.",
+        "submission_id": "b2cb0795-041a-57e1-b3ca-fdbe1bb43e44"
+      },
+      {
+        "sales_deal_id": "e87a886e-31a5-5620-860a-527d02055a31",
+        "report_date": "2026-06-17",
+        "body": "6월16일 CRM10명·부가세 별도 연1,800만 원 계약이 양사서명 완료됐고 개시는7월1일 예정입니다. 문시우는6월19일까지 권한목록, 영업 담당자는6월22일까지10명 접근 테스트 결과를 전달할 예정입니다.",
+        "submission_id": "4a1e8334-60b6-5a16-8eed-b9a59d898afd"
+      },
+      {
+        "sales_deal_id": "a3f37008-d5d1-59d3-8fcb-b5bbfae18cb5",
+        "report_date": "2026-06-17",
+        "body": "결제연동은 외부조회 권한과 추가사용료 미확정으로 보류하며 CRM 계약에 포함되지 않습니다.",
+        "submission_id": "4a1e8334-60b6-5a16-8eed-b9a59d898afd"
+      },
+      {
+        "sales_deal_id": "33fdda96-b0ec-5ad0-99f3-192e905679a5",
+        "report_date": "2026-06-17",
+        "body": "교육안 방식은 검토됐지만 실제교육·날짜·250만 원 비용 승인은 미완료입니다.",
+        "submission_id": "4a1e8334-60b6-5a16-8eed-b9a59d898afd"
+      }
+    ],
+    "trade_history": []
+  },
+  "attachments": []
+}

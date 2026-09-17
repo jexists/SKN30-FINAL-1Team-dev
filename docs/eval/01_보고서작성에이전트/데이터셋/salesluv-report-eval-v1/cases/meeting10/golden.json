@@ -1,0 +1,257 @@
+{
+  "case_id": "meeting10",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting10-f01",
+      "claim": "6월 4일 수정 제안서 발송과 고객 수신이 확인되어 해당 후속 업무가 완료됐습니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 71,
+          "end": 143,
+          "quote": "수정본은 내부 사용자 스무 명과 별도 ERP 연동 항목을 나누어 반영해 발송했고, 메일 수신과 재무팀 전달까지 확인된 상태입니다.",
+          "segment_ids": [
+            "S0002"
+          ]
+        },
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 327,
+          "end": 379,
+          "quote": "수정 제안을 보내고 수신된 후속 업무는 끝났지만, 내부 도입 검토 자체가 끝난 것은 아닙니다.",
+          "segment_ids": [
+            "S0009"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting10-f01"
+    },
+    {
+      "id": "meeting10-f02",
+      "claim": "재무팀은 자동 갱신과 계약 종료 시 데이터 반출 조건을 검토 중입니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 428,
+          "end": 524,
+          "quote": "재무팀에서 지금 확인하는 건 두 가지입니다. 하나는 계약이 자동 갱신되는 조건인지, 다른 하나는 계약이 끝났을 때 CRM에 쌓인 데이터를 어떤 형식으로 받을 수 있는지예요.",
+          "segment_ids": [
+            "S0011",
+            "S0012"
+          ]
+        },
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 525,
+          "end": 554,
+          "quote": "이 답을 받아야 예산 승인 문서를 올릴 수 있습니다.",
+          "segment_ids": [
+            "S0013"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting10-f02"
+    },
+    {
+      "id": "meeting10-f03",
+      "claim": "전체 도입 검토 20명 중 5명이 먼저 시범 운영하며 회신시간과 승인 누락을 함께 평가합니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 871,
+          "end": 917,
+          "quote": "전체 도입 검토 대상은 스무 명이지만, 이번에는 사용자 다섯 명이 먼저 입력합니다.",
+          "segment_ids": [
+            "S0021"
+          ]
+        },
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 960,
+          "end": 1043,
+          "quote": "시범에서 볼 자료는 표본 스무 건으로 유지할게요. 다섯 명이 그 스무 건을 나누어 입력하고, 저는 회신 시간과 승인 누락 여부를 같이 확인하겠습니다.",
+          "segment_ids": [
+            "S0023",
+            "S0024"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting10-f03"
+    },
+    {
+      "id": "meeting10-f04",
+      "claim": "ERP 테스트 파일은 확보했지만 API 사용권·비용이 미확정이므로 연동 딜은 보류합니다.",
+      "sales_deal_id": "deal01-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 1373,
+          "end": 1495,
+          "quote": "테스트 품번 세 개가 들어 있는 파일은 확보했지만, 그 파일을 받았다고 해서 실시간 조회 연동이 가능한 것은 아닙니다. API 사용권과 비용, 조회 권한 범위가 아직 확정되지 않았으므로 해당 연동 검토는 보류하겠습니다.",
+          "segment_ids": [
+            "S0033",
+            "S0034"
+          ]
+        },
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 1701,
+          "end": 1780,
+          "quote": "공급사가 사용료와 조회 권한 범위를 알려 줄 때까지는 ERP 연동은 보류하고, CRM 시범은 파일 업로드 방식으로 진행하는 방향이 맞겠습니다.",
+          "segment_ids": [
+            "S0040"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting10-f04"
+    },
+    {
+      "id": "meeting10-f05",
+      "claim": "이번 시범은 견적 작성·승인 요청까지이며 외부 자동 발송은 사용하지 않습니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 1909,
+          "end": 2011,
+          "quote": "CRM 시범에서 하는 일은 견적 작성과 승인 요청을 올리는 단계까지로 한정하겠습니다. 외부 고객에게 자동으로 메일을 보내는 기능은 사용하지 않고, 실제 발송은 기존 메일로 처리합니다.",
+          "segment_ids": [
+            "S0044",
+            "S0045"
+          ]
+        },
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 2012,
+          "end": 2040,
+          "quote": "CRM에는 실제 발송 시각을 확인해 입력하겠습니다.",
+          "segment_ids": [
+            "S0046"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting10-f05"
+    },
+    {
+      "id": "meeting10-f06",
+      "claim": "시범 오류와 고객의 수량 변경을 구분하고 오류 건을 임의로 표본에서 제외하지 않습니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 2367,
+          "end": 2451,
+          "quote": "그 건을 임의로 제외하지 않고 표본 안에 남기겠습니다. 다만 고객이 중간에 수량을 바꾼 경우는 사용자가 잘못 입력한 경우와 별도 사유로 표시하겠습니다.",
+          "segment_ids": [
+            "S0055",
+            "S0056"
+          ]
+        },
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 2452,
+          "end": 2507,
+          "quote": "모든 지연을 시스템 문제로 단정하지도 않고, 반대로 모든 오류를 사용자 실수로 돌리지도 않겠습니다.",
+          "segment_ids": [
+            "S0057"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting10-f06"
+    },
+    {
+      "id": "meeting10-f07",
+      "claim": "영업 담당자는 6월 11일까지 계약조건 초안을 전달하고 고은서는 6월 14일까지 20건의 시범 결과표를 작성할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 2673,
+          "end": 2733,
+          "quote": "영업 쪽에서는 6월 11일까지 자동 갱신과 계약 종료 시 데이터 반출에 관한 조항 초안을 보내 드리겠습니다.",
+          "segment_ids": [
+            "S0062"
+          ]
+        },
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 2871,
+          "end": 2901,
+          "quote": "저는 시범 결과표를 6월 14일까지 정리할 예정입니다.",
+          "segment_ids": [
+            "S0066"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting10-f07"
+    },
+    {
+      "id": "meeting10-f08",
+      "claim": "검토 회의 일정 변경은 계약 확정을 의미하지 않으며 시범 결과와 조항 검토가 남아 있습니다.",
+      "sales_deal_id": "deal01-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 3168,
+          "end": 3249,
+          "quote": "회의 날짜가 하루 당겨진 것이 구매 결정일이 확정됐다는 뜻은 아니므로, 결과표와 계약 문구를 확인하기 전에는 계약이 끝난 상태로 보지 않겠습니다.",
+          "segment_ids": [
+            "S0074"
+          ]
+        },
+        {
+          "path": "transcripts/meeting10.txt",
+          "start": 3279,
+          "end": 3351,
+          "quote": "시범 결과가 나오기 전에는 계약 완료로 볼 수 없고, 결과가 좋더라도 자동 갱신 조건이 해결되지 않으면 다시 검토할 수 있습니다.",
+          "segment_ids": [
+            "S0077"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting10-f08"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting10-f01",
+    "meeting10-f02",
+    "meeting10-f03",
+    "meeting10-f04",
+    "meeting10-f07",
+    "meeting10-f08"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

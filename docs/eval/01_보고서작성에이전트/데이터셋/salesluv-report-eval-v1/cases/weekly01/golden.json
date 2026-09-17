@@ -1,0 +1,146 @@
+{
+  "case_id": "weekly01",
+  "report_kind": "weekly",
+  "facts": [
+    {
+      "id": "weekly01-f01",
+      "claim": "이번 주 서명계약 목표는 1건입니다.",
+      "source_refs": [
+        {
+          "path": "guidance",
+          "quote": "이번 주 서명계약 목표는 1건입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly01-f02",
+      "claim": "생산지시가 아닌 견적 버전과 승인 이력 관리가 이번 검토 목적입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "생산지시가 아닌 견적 버전과 승인 이력 관리가 이번 검토 목적입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly01-f03",
+      "claim": "화주 문의·회신 이력 통합이 목적이며 차량 추적·배차 교체는 범위 밖입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "화주 문의·회신 이력 통합이 목적이며 차량 추적·배차 교체는 범위 밖입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly01-f04",
+      "claim": "상담 접수는 하루 평균150건이며 재문의는 신규 주문과 구분해야 합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "상담 접수는 하루 평균150건이며 재문의는 신규 주문과 구분해야 합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly01-f05",
+      "claim": "상담예약·수강신청·결제확인을 구분하고 같은 사람의 복수과정 문의를 등록인원으로 중복 집계하지 않습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "상담예약·수강신청·결제확인을 구분하고 같은 사람의 복수과정 문의를 등록인원으로 중복 집계하지 않습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly01-f06",
+      "claim": "CRM은 영업16명·단가수정 팀장2명 권한으로 검토합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "CRM은 영업16명·단가수정 팀장2명 권한으로 검토합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly01-f07",
+      "claim": "현장6팀·내근4명이 접수·배정·방문·수리·고객확인 이력을 공유하려고 합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "현장6팀·내근4명이 접수·배정·방문·수리·고객확인 이력을 공유하려고 합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly01-f08",
+      "claim": "본사12명·점주24명 접근을 분리하며 정보시스템팀과 재무본부장 승인이 필요합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "본사12명·점주24명 접근을 분리하며 정보시스템팀과 재무본부장 승인이 필요합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly01-f09",
+      "claim": "6개 프로젝트 중2건은 조사완료 후 고객 투자위원회 일정 대기이며 인허가 거절이 아닙니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "6개 프로젝트 중2건은 조사완료 후 고객 투자위원회 일정 대기이며 인허가 거절이 아닙니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "weekly01-f10",
+      "claim": "프로듀서9명의 계약범위·수정회차·제작인계 관리가 목적입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "프로듀서9명의 계약범위·수정회차·제작인계 관리가 목적입니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "weekly01-f01",
+    "weekly01-f02",
+    "weekly01-f03",
+    "weekly01-f04",
+    "weekly01-f05",
+    "weekly01-f06",
+    "weekly01-f07",
+    "weekly01-f08",
+    "weekly01-f09",
+    "weekly01-f10"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [
+    {
+      "claim": "금주 미팅 9건, 월 누적 9건입니다. 금주 신규 서명 계약은 0건, 부가세 별도 0원입니다.",
+      "operation": "당기 미팅은 source_activity_id 중복 제거; 신규 서명은 event_id별 한 번 합산",
+      "expected": {
+        "meeting_count": 9,
+        "new_contract_count": 0,
+        "signed_amount_krw": 0
+      }
+    }
+  ],
+  "report_expectations": "목표→실적→차이→근거 있는 원인→다음 주 조치. 원인·목표 미제공은 미정으로 둡니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

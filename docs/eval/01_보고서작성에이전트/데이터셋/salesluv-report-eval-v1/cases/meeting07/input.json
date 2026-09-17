@@ -1,0 +1,1004 @@
+{
+  "transcript": "영업 담당자: 오늘은 가맹점 지원 CRM과 정산내역 조회 연동을 나누어 보면서, 가맹점에 어디까지 공개할지와 본사에서 누가 승인해야 하는지를 확인하겠습니다. 특히 요청·공지 응답을 다루는 화면과 정산 확정본을 보는 범위는 같은 권한으로 묶으면 안 될 것 같습니다.\n민채원: 맞아요. 제가 가맹지원 쪽 의견을 모으고 있기는 하지만, 전사 도입을 제가 승인할 수 있는 상황은 아닙니다. 정보시스템팀 검토가 필요하고, 재무본부장 승인도 받아야 해요.\n영업 담당자: 그럼 CRM 쪽은 먼저 접근 주체를 분리해서 보겠습니다. 본사에서는 열두 명이 전체 요청을 볼 수 있고, 점주는 스물네 명이 각자 자기 점포의 요청만 보도록 하는 구성이 기준이겠네요.\n민채원: 네. 점주가 자기 점포에 들어온 요청과 본사 답변은 봐야 하지만, 다른 점포의 요청이나 그쪽에서 오간 내용은 보면 안 됩니다. 본사 열두 명은 전체를 확인할 수 있어야 하고요.\n영업 담당자: 점포별로 접근을 나누는 방식으로 검토하겠습니다. 본사 계정과 점주 계정을 같은 화면에 두더라도, 점주 계정에는 자기 점포 범위만 연결되는지가 핵심이겠군요. 단순히 사용자 유형만 나누는 것으로 충분한지는 별도로 확인해야 합니다.\n민채원: 메뉴에서 다른 점포를 안 보이게 하는 정도라면 불안합니다. 주소를 직접 입력하거나, 문서 링크를 받아서 들어가는 경우에도 다른 점포 자료가 열리지 않아야 해요.\n영업 담당자: 공유 링크로 다운로드받는 문서까지 점포 권한이 이어지는지는 확인이 필요한 항목입니다. 화면의 메뉴 노출과 문서 접근은 같은 문제로 단정하기 어렵기 때문에, 권한표에 문서 공유와 다운로드 범위도 따로 적어 보겠습니다.\n민채원: 그 확인 결과가 있어야 정보시스템팀에 넘길 수 있습니다. 두 점포를 가상으로 만들어서 서로의 요청이 보이지 않는지도 먼저 보고 싶어요. 실제 점주 개인정보를 입력하는 단계는 아니었으면 합니다.\n영업 담당자: 시범에서는 가상 계정 두 점포만 두고 상호 접근이 차단되는지 확인하는 조건으로 보겠습니다. 실제 점주 개인정보를 넣지 않고 권한만 검증하는 방식입니다. 이 검증이 통과해야 본사에서 도입 논의를 계속할 수 있는 것으로 이해했습니다.\n민채원: 네, 그 순서가 맞습니다. 가상 점포 하나에서 본사 역할로 전체 요청을 보는 것과, 다른 가상 점포 역할로 상대 점포 요청을 열어 보는 것을 각각 확인해야 해요. 서로의 요청이 보이면 본사 검토를 진행하기 어렵습니다.\n영업 담당자: 가상 두 점포 사이에 요청 정보가 노출되는지 보는 것이 시범 조건이군요. 다만 실제 운영에서 모든 경우가 같은 방식으로 처리되는지는 이 검증 결과만으로 넓혀 말하기 어렵기 때문에, 우선 정해진 접근 조건부터 확인하겠습니다.\n민채원: 비용도 같이 봐야 합니다. 연 2,800만 원이라는 제안은 들었지만, 지금 바로 결정할 금액은 아니고 검토용으로 받아 두려는 겁니다. 정보시스템팀과 재무본부장이 내용을 본 뒤에야 판단할 수 있어요.\n영업 담당자: 연 2,800만 원은 현재 검토용 제안으로 놓고, 권한 검증과 내부 승인 검토가 먼저라는 점을 전제로 보겠습니다. 제가 가격이나 도입 여부를 확정해 말씀드릴 단계는 아니겠네요.\n민채원: 정산내역 조회 연동은 CRM 권한과는 조금 다르게 봐야 합니다. 이번 달 예상 수수료와 지난달 확정 정산액을 점주가 헷갈리지 않도록 분리해서 보여 줘야 해요.\n영업 담당자: 초기 정산 연동의 범위는 확정본 조회로 두는 것이 맞겠습니다. 예상수수료는 반품이나 판촉비 조정 때문에 바뀔 수 있으니 확정 정산액과 같은 값처럼 다루면 안 되고, 실제 지급이 끝났다는 의미와도 구분해야 합니다.\n민채원: 맞습니다. 예상수수료는 이번 달에 보이는 참고 값이고, 조정이 들어가면 달라질 수 있어요. 지난달 확정 정산액은 확정본으로 확인하되, 그 숫자가 실제로 점주 계좌에 지급됐다는 뜻은 아닙니다.\n영업 담당자: 그러면 점주에게 처음 제공할 것은 확정 정산본을 조회하는 기능이고, 예상수수료와 확정 정산액은 서로 다른 항목으로 보여야 합니다. 실제 지급 완료는 은행 송금 확인 뒤 별도로 알리는 상태로 남겨 두겠습니다.\n민채원: 그 구분은 재무본부장이 특히 볼 겁니다. 확정 정산액이 조회된 것과 실제 지급이 완료된 것은 재무 처리상 다르니까요. 조회 연동이 된다고 해서 지급까지 확인되는 것으로 설명하면 안 됩니다.\n영업 담당자: 정산 화면에서 확인되는 것은 우선 확정본 조회이고, 지급 완료 여부는 은행 송금 확인 뒤 별도로 알려지는 것으로 나누겠습니다. 예상 값이 바뀔 수 있다는 점도 확정액과 한 화면에서 같은 의미로 읽히지 않게 구분해야겠습니다.\n민채원: CRM 쪽으로 다시 돌아가면, 제가 가맹점 의견을 모아서 정보시스템팀에 전달하는 역할은 할 수 있습니다. 다만 본사 전체가 도입할지, 어떤 범위로 승인할지는 정보시스템팀과 재무본부장 검토가 필요합니다.\n영업 담당자: 알겠습니다. 권한 설정과 문서 접근 검증 자료를 준비하되, 내부 승인 자체를 대신 판단하는 것으로 보지는 않겠습니다. 본사 열두 명과 점주 스물네 명의 접근 차이를 검토할 수 있도록 필요한 항목을 나누어 전달하겠습니다.\n민채원: 오늘이 6월 5일이니, 6월 8일까지 본사·점주 권한표와 가상 두 점포의 접근 검증 결과를 보내 주세요. 제가 받은 뒤 정보시스템팀에 넘기겠습니다.\n영업 담당자: 6월 8일까지 권한표와 가상 두 점포 테스트 결과를 전달할 예정입니다. 권한표에는 본사와 점주의 요청 접근 범위뿐 아니라 공유 링크로 내려받는 문서에도 점포 권한이 적용되는지 확인할 항목을 함께 넣겠습니다.\n민채원: 좋습니다. 다만 문서 링크 권한이 실제로 어떻게 적용되는지는 자료를 받아 보기 전에는 판단하지 않겠습니다. 그 부분이 확인되지 않으면 메뉴에서만 숨긴 것과 다르지 않다고 볼 수밖에 없어요.\n영업 담당자: 그 점은 별도 확인 사항으로 두겠습니다. 가상 테스트에서 확인되는 접근 차단 결과와 문서 링크의 권한 적용 여부를 구분해서 살펴보고, 결과를 받은 뒤 정보시스템팀이 검토할 수 있게 하겠습니다.\n민채원: 정산 쪽은 확정본 조회라는 초기 범위가 분명하면 내부 설명이 쉬울 것 같습니다. 예상수수료, 확정 정산액, 실제 지급은 서로 다른 상태라는 점만 놓치지 않으면 됩니다.\n영업 담당자: 네. 정산 연동은 확정본 조회로 시작하고, 예상수수료는 조정에 따라 변할 수 있는 값, 확정 정산액은 확정된 조회 대상, 실제 지급은 은행 송금 확인 뒤 별도로 알리는 상태로 구분하겠습니다.\n민채원: 그리고 CRM은 두 점포가 서로의 요청을 보지 못하는지 확인한 뒤에야 본사 도입 이야기를 이어가겠습니다. 연 2,800만 원 제안도 그 검토 과정에서 함께 보겠습니다.\n영업 담당자: 네, 가상 두 점포의 상호 접근 차단을 먼저 확인하고, 본사 열두 명과 점주 스물네 명의 범위 및 문서 접근 여부를 함께 살펴보겠습니다. 6월 8일까지 관련 권한표와 테스트 결과를 전달할 예정이며, 이후 정보시스템팀과 재무본부장 검토가 필요한 상태로 이해했습니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "31441571c6e847127265678a42b34a12f0e6b6091b531301699710c26bd61053",
+    "selected_deal_ids": [
+      "dac86e90-364f-5740-b590-ee2d705c0e50",
+      "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 87,
+          "text": "영업 담당자: 오늘은 가맹점 지원 CRM과 정산내역 조회 연동을 나누어 보면서, 가맹점에 어디까지 공개할지와 본사에서 누가 승인해야 하는지를 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 88,
+          "end": 147,
+          "text": "특히 요청·공지 응답을 다루는 화면과 정산 확정본을 보는 범위는 같은 권한으로 묶으면 안 될 것 같습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50",
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 148,
+          "end": 157,
+          "text": "민채원: 맞아요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 158,
+          "end": 213,
+          "text": "제가 가맹지원 쪽 의견을 모으고 있기는 하지만, 전사 도입을 제가 승인할 수 있는 상황은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 214,
+          "end": 248,
+          "text": "정보시스템팀 검토가 필요하고, 재무본부장 승인도 받아야 해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 249,
+          "end": 288,
+          "text": "영업 담당자: 그럼 CRM 쪽은 먼저 접근 주체를 분리해서 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 289,
+          "end": 359,
+          "text": "본사에서는 열두 명이 전체 요청을 볼 수 있고, 점주는 스물네 명이 각자 자기 점포의 요청만 보도록 하는 구성이 기준이겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 360,
+          "end": 367,
+          "text": "민채원: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 368,
+          "end": 435,
+          "text": "점주가 자기 점포에 들어온 요청과 본사 답변은 봐야 하지만, 다른 점포의 요청이나 그쪽에서 오간 내용은 보면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 436,
+          "end": 463,
+          "text": "본사 열두 명은 전체를 확인할 수 있어야 하고요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 464,
+          "end": 498,
+          "text": "영업 담당자: 점포별로 접근을 나누는 방식으로 검토하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 499,
+          "end": 558,
+          "text": "본사 계정과 점주 계정을 같은 화면에 두더라도, 점주 계정에는 자기 점포 범위만 연결되는지가 핵심이겠군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 559,
+          "end": 598,
+          "text": "단순히 사용자 유형만 나누는 것으로 충분한지는 별도로 확인해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 599,
+          "end": 636,
+          "text": "민채원: 메뉴에서 다른 점포를 안 보이게 하는 정도라면 불안합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 637,
+          "end": 693,
+          "text": "주소를 직접 입력하거나, 문서 링크를 받아서 들어가는 경우에도 다른 점포 자료가 열리지 않아야 해요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 694,
+          "end": 749,
+          "text": "영업 담당자: 공유 링크로 다운로드받는 문서까지 점포 권한이 이어지는지는 확인이 필요한 항목입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 750,
+          "end": 822,
+          "text": "화면의 메뉴 노출과 문서 접근은 같은 문제로 단정하기 어렵기 때문에, 권한표에 문서 공유와 다운로드 범위도 따로 적어 보겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 823,
+          "end": 859,
+          "text": "민채원: 그 확인 결과가 있어야 정보시스템팀에 넘길 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 860,
+          "end": 903,
+          "text": "두 점포를 가상으로 만들어서 서로의 요청이 보이지 않는지도 먼저 보고 싶어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 904,
+          "end": 935,
+          "text": "실제 점주 개인정보를 입력하는 단계는 아니었으면 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 936,
+          "end": 994,
+          "text": "영업 담당자: 시범에서는 가상 계정 두 점포만 두고 상호 접근이 차단되는지 확인하는 조건으로 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 995,
+          "end": 1028,
+          "text": "실제 점주 개인정보를 넣지 않고 권한만 검증하는 방식입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 1029,
+          "end": 1072,
+          "text": "이 검증이 통과해야 본사에서 도입 논의를 계속할 수 있는 것으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 1073,
+          "end": 1092,
+          "text": "민채원: 네, 그 순서가 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1093,
+          "end": 1168,
+          "text": "가상 점포 하나에서 본사 역할로 전체 요청을 보는 것과, 다른 가상 점포 역할로 상대 점포 요청을 열어 보는 것을 각각 확인해야 해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1169,
+          "end": 1199,
+          "text": "서로의 요청이 보이면 본사 검토를 진행하기 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1200,
+          "end": 1248,
+          "text": "영업 담당자: 가상 두 점포 사이에 요청 정보가 노출되는지 보는 것이 시범 조건이군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1249,
+          "end": 1332,
+          "text": "다만 실제 운영에서 모든 경우가 같은 방식으로 처리되는지는 이 검증 결과만으로 넓혀 말하기 어렵기 때문에, 우선 정해진 접근 조건부터 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1333,
+          "end": 1352,
+          "text": "민채원: 비용도 같이 봐야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1353,
+          "end": 1412,
+          "text": "연 2,800만 원이라는 제안은 들었지만, 지금 바로 결정할 금액은 아니고 검토용으로 받아 두려는 겁니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1413,
+          "end": 1448,
+          "text": "정보시스템팀과 재무본부장이 내용을 본 뒤에야 판단할 수 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1449,
+          "end": 1520,
+          "text": "영업 담당자: 연 2,800만 원은 현재 검토용 제안으로 놓고, 권한 검증과 내부 승인 검토가 먼저라는 점을 전제로 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1521,
+          "end": 1555,
+          "text": "제가 가격이나 도입 여부를 확정해 말씀드릴 단계는 아니겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1556,
+          "end": 1596,
+          "text": "민채원: 정산내역 조회 연동은 CRM 권한과는 조금 다르게 봐야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1597,
+          "end": 1649,
+          "text": "이번 달 예상 수수료와 지난달 확정 정산액을 점주가 헷갈리지 않도록 분리해서 보여 줘야 해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1650,
+          "end": 1692,
+          "text": "영업 담당자: 초기 정산 연동의 범위는 확정본 조회로 두는 것이 맞겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1693,
+          "end": 1776,
+          "text": "예상수수료는 반품이나 판촉비 조정 때문에 바뀔 수 있으니 확정 정산액과 같은 값처럼 다루면 안 되고, 실제 지급이 끝났다는 의미와도 구분해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1777,
+          "end": 1787,
+          "text": "민채원: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1788,
+          "end": 1832,
+          "text": "예상수수료는 이번 달에 보이는 참고 값이고, 조정이 들어가면 달라질 수 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1833,
+          "end": 1888,
+          "text": "지난달 확정 정산액은 확정본으로 확인하되, 그 숫자가 실제로 점주 계좌에 지급됐다는 뜻은 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1889,
+          "end": 1969,
+          "text": "영업 담당자: 그러면 점주에게 처음 제공할 것은 확정 정산본을 조회하는 기능이고, 예상수수료와 확정 정산액은 서로 다른 항목으로 보여야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1970,
+          "end": 2012,
+          "text": "실제 지급 완료는 은행 송금 확인 뒤 별도로 알리는 상태로 남겨 두겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 2013,
+          "end": 2040,
+          "text": "민채원: 그 구분은 재무본부장이 특히 볼 겁니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 2041,
+          "end": 2083,
+          "text": "확정 정산액이 조회된 것과 실제 지급이 완료된 것은 재무 처리상 다르니까요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 2084,
+          "end": 2123,
+          "text": "조회 연동이 된다고 해서 지급까지 확인되는 것으로 설명하면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 2124,
+          "end": 2202,
+          "text": "영업 담당자: 정산 화면에서 확인되는 것은 우선 확정본 조회이고, 지급 완료 여부는 은행 송금 확인 뒤 별도로 알려지는 것으로 나누겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 2203,
+          "end": 2256,
+          "text": "예상 값이 바뀔 수 있다는 점도 확정액과 한 화면에서 같은 의미로 읽히지 않게 구분해야겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 2257,
+          "end": 2320,
+          "text": "민채원: CRM 쪽으로 다시 돌아가면, 제가 가맹점 의견을 모아서 정보시스템팀에 전달하는 역할은 할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 2321,
+          "end": 2374,
+          "text": "다만 본사 전체가 도입할지, 어떤 범위로 승인할지는 정보시스템팀과 재무본부장 검토가 필요합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0050",
+          "start": 2375,
+          "end": 2389,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0051",
+          "start": 2390,
+          "end": 2448,
+          "text": "권한 설정과 문서 접근 검증 자료를 준비하되, 내부 승인 자체를 대신 판단하는 것으로 보지는 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0052",
+          "start": 2449,
+          "end": 2505,
+          "text": "본사 열두 명과 점주 스물네 명의 접근 차이를 검토할 수 있도록 필요한 항목을 나누어 전달하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0053",
+          "start": 2506,
+          "end": 2569,
+          "text": "민채원: 오늘이 6월 5일이니, 6월 8일까지 본사·점주 권한표와 가상 두 점포의 접근 검증 결과를 보내 주세요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0054",
+          "start": 2570,
+          "end": 2593,
+          "text": "제가 받은 뒤 정보시스템팀에 넘기겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0055",
+          "start": 2594,
+          "end": 2641,
+          "text": "영업 담당자: 6월 8일까지 권한표와 가상 두 점포 테스트 결과를 전달할 예정입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0056",
+          "start": 2642,
+          "end": 2717,
+          "text": "권한표에는 본사와 점주의 요청 접근 범위뿐 아니라 공유 링크로 내려받는 문서에도 점포 권한이 적용되는지 확인할 항목을 함께 넣겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0057",
+          "start": 2718,
+          "end": 2728,
+          "text": "민채원: 좋습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0058",
+          "start": 2729,
+          "end": 2782,
+          "text": "다만 문서 링크 권한이 실제로 어떻게 적용되는지는 자료를 받아 보기 전에는 판단하지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0059",
+          "start": 2783,
+          "end": 2828,
+          "text": "그 부분이 확인되지 않으면 메뉴에서만 숨긴 것과 다르지 않다고 볼 수밖에 없어요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0060",
+          "start": 2829,
+          "end": 2859,
+          "text": "영업 담당자: 그 점은 별도 확인 사항으로 두겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0061",
+          "start": 2860,
+          "end": 2944,
+          "text": "가상 테스트에서 확인되는 접근 차단 결과와 문서 링크의 권한 적용 여부를 구분해서 살펴보고, 결과를 받은 뒤 정보시스템팀이 검토할 수 있게 하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0062",
+          "start": 2945,
+          "end": 2994,
+          "text": "민채원: 정산 쪽은 확정본 조회라는 초기 범위가 분명하면 내부 설명이 쉬울 것 같습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0063",
+          "start": 2995,
+          "end": 3043,
+          "text": "예상수수료, 확정 정산액, 실제 지급은 서로 다른 상태라는 점만 놓치지 않으면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0064",
+          "start": 3044,
+          "end": 3054,
+          "text": "영업 담당자: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0065",
+          "start": 3055,
+          "end": 3158,
+          "text": "정산 연동은 확정본 조회로 시작하고, 예상수수료는 조정에 따라 변할 수 있는 값, 확정 정산액은 확정된 조회 대상, 실제 지급은 은행 송금 확인 뒤 별도로 알리는 상태로 구분하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "1bd1f143-cff3-53af-8075-a11f37b89ee7"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0066",
+          "start": 3159,
+          "end": 3222,
+          "text": "민채원: 그리고 CRM은 두 점포가 서로의 요청을 보지 못하는지 확인한 뒤에야 본사 도입 이야기를 이어가겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0067",
+          "start": 3223,
+          "end": 3257,
+          "text": "연 2,800만 원 제안도 그 검토 과정에서 함께 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0068",
+          "start": 3258,
+          "end": 3342,
+          "text": "영업 담당자: 네, 가상 두 점포의 상호 접근 차단을 먼저 확인하고, 본사 열두 명과 점주 스물네 명의 범위 및 문서 접근 여부를 함께 살펴보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0069",
+          "start": 3343,
+          "end": 3413,
+          "text": "6월 8일까지 관련 권한표와 테스트 결과를 전달할 예정이며, 이후 정보시스템팀과 재무본부장 검토가 필요한 상태로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "dac86e90-364f-5740-b590-ee2d705c0e50"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-05T09:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "9d8838b8-9cf9-5760-a9aa-bb08255ef35b",
+      "name": "바른유통(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "b2f52be4-d1a7-5007-b5b2-5c7f772c5045",
+      "name": "민채원(가상)"
+    },
+    "activity": {
+      "id": "1d93c9cf-f9dc-5981-bcb5-ca550e5bfc3c",
+      "starts_at": "2026-06-05T09:00:00+09:00",
+      "title": "가맹점 공유 범위와 본사 승인권자"
+    },
+    "deals": [
+      {
+        "id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "company_id": "company07",
+        "contact_id": "contact07",
+        "title": "가맹점 지원 CRM",
+        "description": "가맹점별 요청·공지 응답과 본사 승인사항을 공유하는 CRM.",
+        "deal_amount": 28000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "dac86e90-364f-5740-b590-ee2d705c0e50",
+        "observed_state": "도입 검토; 계약 없음"
+      },
+      {
+        "id": "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+        "company_id": "company07",
+        "contact_id": "contact07",
+        "title": "정산내역 조회 연동",
+        "description": "가맹점 정산 확정본을 조회하는 연동. 예상수수료와 확정정산액 분리.",
+        "deal_amount": 7500000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "1bd1f143-cff3-53af-8075-a11f37b89ee7",
+        "observed_state": "도입 검토; 계약 없음"
+      }
+    ],
+    "previous_reports": [],
+    "trade_history": []
+  },
+  "attachments": []
+}

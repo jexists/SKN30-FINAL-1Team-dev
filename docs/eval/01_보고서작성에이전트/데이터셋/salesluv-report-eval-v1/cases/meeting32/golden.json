@@ -1,0 +1,188 @@
+{
+  "case_id": "meeting32",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting32-f01",
+      "claim": "안내자료 수신 후3명 의견을 받았고1명은 승인상태 글자 가독성 개선을 요청했습니다.",
+      "sales_deal_id": "deal05-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 108,
+          "end": 198,
+          "quote": "장하람: 자료를 받은 뒤 세 명에게 보여 줬습니다. 세 사람의 반응이 모두 같지는 않았고, 그중 한 명은 화면에서 승인상태라는 글자가 잘 읽히지 않는다고 했어요.",
+          "segment_ids": [
+            "S0003",
+            "S0004"
+          ]
+        },
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 529,
+          "end": 606,
+          "quote": "장하람: 네. 확대 화면 예시를 6월 26일까지 보내 주세요. 그 자료를 받은 뒤 처음 의견을 준 같은 세 명에게 다시 확인해 보겠습니다.",
+          "segment_ids": [
+            "S0012",
+            "S0013",
+            "S0014"
+          ]
+        },
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 3124,
+          "end": 3319,
+          "quote": "영업 담당자: 네, 현재 확인된 범위는 그렇게 나뉩니다. 모바일 교육 자료에 대한 세 명의 의견 중 한 명이 승인상태 가독성 개선을 요청했고, CRM 열여섯 명 검토는 계속하지만 예산승인·계약·발주 일정은 미정입니다. 재고 연동은 예약취소가 미검증이고 운영 연결 전이며, 다음 달에는 CRM 예산 검토와 창고 테스트 지원을 우선으로 두는 흐름입니다.",
+          "segment_ids": [
+            "S0073",
+            "S0074",
+            "S0075"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting32-f01"
+    },
+    {
+      "id": "meeting32-f02",
+      "claim": "CRM16명 검토는 유지하나 예산승인·계약·발주 일정은 미정입니다.",
+      "sales_deal_id": "deal05-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 1265,
+          "end": 1365,
+          "quote": "장하람: 맞아요. 예산승인은 아직이고, 계약도 발주도 없습니다. 회의에 올릴 예정이긴 하지만 날짜가 정해진 것은 아니어서, 언제 승인될지나 언제 계약할지는 지금 말하기 어렵습니다.",
+          "segment_ids": [
+            "S0029",
+            "S0030",
+            "S0031"
+          ]
+        },
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 1366,
+          "end": 1438,
+          "quote": "영업 담당자: 그럼 사용자 범위는 열여섯 명으로 계속 검토하되, 예산승인·계약·발주 일정은 아직 정해지지 않은 상태로 두겠습니다.",
+          "segment_ids": [
+            "S0032"
+          ]
+        },
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 3002,
+          "end": 3082,
+          "quote": "장하람: 그 정도로 정리하면 됩니다. 화면 예시는 6월 26일까지 필요하고, CRM은 열여섯 명 검토를 유지하지만 재무팀 결재는 아직 없습니다.",
+          "segment_ids": [
+            "S0070",
+            "S0071"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting32-f02"
+    },
+    {
+      "id": "meeting32-f03",
+      "claim": "예약취소 연동은 테스트시간 미확정으로 미검증이며 운영연결은 열지 않았습니다.",
+      "sales_deal_id": "deal05-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 1908,
+          "end": 2059,
+          "quote": "영업 담당자: 그러면 재고·유통기한 조회 쪽은 창고시스템의 가용재고와 로트별 유통기한을 조회하는 연동이라는 기본 범위는 두되, 예약재고를 판매가능재고에서 분리하는 흐름 중 예약취소 부분은 아직 확인 전인 상태입니다. 운영 연결도 아직 시작하지 않은 것으로 이해하겠습니다.",
+          "segment_ids": [
+            "S0045",
+            "S0046"
+          ]
+        },
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 2373,
+          "end": 2491,
+          "quote": "영업 담당자: 확인된 부분과 아직 열리지 않은 부분을 구분해서 보겠습니다. 가용재고 산식 확인은 현재 상태이고, 예약취소 이벤트는 테스트 시간이 미확정이라 검증 전이며, 운영 데이터 연결도 열지 않은 상태입니다.",
+          "segment_ids": [
+            "S0056",
+            "S0057"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting32-f03"
+    },
+    {
+      "id": "meeting32-f04",
+      "claim": "다음 달 우선과제는 CRM 예산검토·창고테스트 지원이며6월26일까지 승인상태 확대 화면 예시를 요청합니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 2492,
+          "end": 2601,
+          "quote": "장하람: 그리고 다음 달 업무의 우선순위를 정리하면 CRM 예산 검토와 창고 테스트 지원이 먼저입니다. 화면 쪽에서는 승인상태가 잘 보이는 확대 예시를 받아서 세 명에게 다시 보여 주고 싶습니다.",
+          "segment_ids": [
+            "S0058",
+            "S0059"
+          ]
+        },
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 2163,
+          "end": 2209,
+          "quote": "영업 담당자: 다음 달에는 창고 공급사에 테스트 지원을 요청하는 일이 필요하겠군요.",
+          "segment_ids": [
+            "S0050"
+          ]
+        },
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 2602,
+          "end": 2673,
+          "quote": "영업 담당자: 네. 모바일 화면 관련해서는 6월 26일까지 확대 예시를 요청하셨고, 그 뒤 같은 세 명에게 확인하실 계획입니다.",
+          "segment_ids": [
+            "S0060",
+            "S0061"
+          ]
+        },
+        {
+          "path": "transcripts/meeting32.txt",
+          "start": 2742,
+          "end": 2827,
+          "quote": "장하람: 기능의 우선순위도 하나 더 있습니다. 다음 달에는 단가 회신에서 생기는 오류를 먼저 줄이고 싶습니다. 자동 주문 확정은 그보다 뒤로 두겠습니다.",
+          "segment_ids": [
+            "S0063",
+            "S0064",
+            "S0065"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting32-f04"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting32-f01",
+    "meeting32-f02",
+    "meeting32-f03",
+    "meeting32-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

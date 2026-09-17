@@ -1,0 +1,1191 @@
+{
+  "transcript": "영업 담당자: 오늘은 6월 26일 기준으로, 제한 자료를 어디까지 반입할 수 있는지와 다음 달에 먼저 볼 일을 나눠서 확인하고 싶습니다. 먼저 자료 범위부터 여쭤봐도 될까요?\n백도하: 6월 22일에 답을 받았는데, 제한적인 시범만 허용됐어요. 프로젝트 이름과 진행 단계, 요청된 일정과 확정된 일정 정도만 넣을 수 있습니다. 실도면과 계약서는 아직 제외예요.\n영업 담당자: 그러면 이번 시범에서 다루는 것은 이름·단계·일정 정보이고, 실제 도면이나 계약 관련 자료는 반입 대상이 아닌 상태군요.\n백도하: 네. 관리자가 내려받는 방식은 시험해 봤고 그 결과는 괜찮다고 봤습니다. 그렇다고 모든 자료를 옮겨도 된다는 승인을 받은 건 아닙니다.\n영업 담당자: 다운로드 시험이 가능했다는 점과 전체 자료 이전 승인은 별개로 보는 게 맞겠습니다. 도면이나 계약서를 넣어 보자는 요청은 지금 범위에 포함되지 않는 거죠?\n백도하: 맞아요. 그 자료들은 아직 제외입니다. 제한 시범이 끝난 뒤에 범위를 다시 볼 수는 있지만, 지금 허용된 내용으로 이해해 주세요.\n영업 담당자: 알겠습니다. 그럼 자료 전환 지원 쪽에서는 허용된 항목만 접근권한을 확인하고, 실도면과 계약서는 건드리지 않는 조건으로 진행을 검토하면 되겠습니다.\n백도하: 그 조건이면 제한 시범의 허용 범위에 맞습니다. 다만 지금 단계에서 전체 자료가 옮겨진다고 생각하면 안 됩니다.\n영업 담당자: 네, 제한된 정보와 전체 자료 이전을 구분하겠습니다. 다음은 프로젝트 CRM과 재무 판단 상황을 여쭙겠습니다.\n백도하: 재무팀은 제한 시범을 먼저 본 다음 달에 예산을 판단하기로 했어요. 아직 CRM 계약에 서명한 건 없습니다.\n영업 담당자: 현재 검토 예상금액은 어느 정도로 보고 계신가요?\n백도하: 삼천이백만 원으로 보던 금액은 그대로입니다. 다만 이번 달에 계약한 금액이나 실적으로 보기는 어렵습니다.\n영업 담당자: 금액 검토는 유지되지만, 이번 달 계약 체결은 아직 없고 재무팀의 예산 판단은 다음 달로 예정된 상태군요.\n백도하: 네. 그리고 고객 투자위원회 일정이 아직 나오지 않은 프로젝트가 두 건 있어요. 그 두 건도 고객 승인 대기 상태가 그대로입니다.\n영업 담당자: 그 두 프로젝트는 위원회 일정이 정해져야 다음 승인 단계로 움직일 수 있겠네요. 지금은 별도의 일정이 나온 것으로 보기는 어렵겠습니다.\n백도하: 그렇습니다. 재무팀의 예산 판단도 아직 이뤄지지 않았고, 고객 쪽 승인 대기 두 건도 변한 게 없어요.\n영업 담당자: 그러면 CRM에서는 사업장별 제안과 승인 조건을 계속 추적하되, 계약이나 예산이 이미 정해진 것처럼 다루지는 않겠습니다. 이제 현장조사 일정 쪽을 보죠.\n백도하: 일정이 밀린 건은 두 가지가 있어요. 하나는 가동시간 문제로 조사가 사흘 늦어졌고, 다른 하나는 병가 때문에 다시 날짜를 잡는 중입니다.\n영업 담당자: 가동시간 때문에 미뤄진 건은 사흘 뒤에 실제 조사를 진행한 건가요, 아니면 날짜만 다시 잡은 건가요?\n백도하: 사흘 뒤에 조사를 했고, 완료 확인도 받았습니다. 그 건은 이제 조사 완료로 봐야 해요.\n영업 담당자: 알겠습니다. 그 건은 변경 사유가 남아 있더라도 현재 상태는 완료로 연결하면 되겠네요.\n백도하: 네. 반면 병가 때문에 재조정 중인 한 건은 아직 새 날짜가 없습니다. 같은 사유로 묶으면 안 되고, 이 건은 일정 대기로 봐 주세요.\n영업 담당자: 새 날짜가 정해지지 않은 한 건은 외부 일정표에서 읽을 일정이 아직 없는 상태로 두겠습니다. 취소로 바뀐 조사는 없다는 점도 맞습니까?\n백도하: 네, 취소된 건은 없습니다. 하나는 완료됐고, 하나는 날짜를 기다리고 있어요.\n영업 담당자: 그 구분이면 현장조사 일정 연계에서 변경 사유와 현재 상태를 다르게 볼 수 있겠습니다. 완료된 건과 일정 미정인 건을 같은 대기 항목으로 처리하지 않겠습니다.\n백도하: 좋아요. 외부 일정표에 새 날짜가 생기기 전까지는 병가 건을 억지로 일정에 넣지 않는 게 맞습니다.\n영업 담당자: 그 부분은 현재 확인된 정보 안에서만 연결하면 되겠습니다. 마지막으로 제한 시범에서 무엇을 먼저 확인할지 이야기해 보죠.\n백도하: 제가 6월 29일까지 여섯 프로젝트를 대상으로 확인 항목을 정리할 예정입니다. 각 프로젝트에서 아직 남은 조건을 찾아낼 수 있는지 보려고 해요.\n영업 담당자: 여섯 프로젝트에서 남은 조건을 찾을 수 있는지를 보는 것이 핵심이군요. 그 확인에는 실도면이 필요하다고 보시나요?\n백도하: 아니요. 이번 검토에는 실제 도면이 필요하지 않습니다. 이름과 단계, 요청·확정 일정처럼 제한 시범에서 볼 수 있는 정보로 충분한지부터 확인할 거예요.\n영업 담당자: 그 범위라면 도면 반입 여부와 별개로 시범의 확인 항목을 정리할 수 있겠습니다. 다만 여섯 프로젝트에서 실제로 남은 조건이 모두 드러나는지는 확인해 봐야겠네요.\n백도하: 맞습니다. 시범 결과를 본 다음에 예산을 판단하고, 도면까지 확대해서 허용할지는 따로 논의할 겁니다. 두 사안을 한 번에 결정하는 건 아니에요.\n영업 담당자: 예산 판단과 도면 범위 확대는 각각 별도로 논의하고, 현재는 제한 정보로 여섯 프로젝트의 남은 조건을 확인하는 단계로 이해했습니다.\n백도하: 네. 제가 6월 29일까지 확인 항목을 정리하고, 그 뒤에 어떤 자료 범위를 더 볼 수 있을지 판단할 수 있습니다. 지금은 제한 시범 조건을 넘기지 않는 게 중요해요.\n영업 담당자: 그럼 오늘 기준으로는 제한된 이름·단계·일정만 자료 전환 검토 대상이고, CRM은 아직 서명 전이며 재무팀의 예산 판단을 기다립니다. 현장조사는 사흘 뒤 완료된 건과 일정 미정인 한 건을 나눠 관리하고, 여섯 프로젝트 확인 항목은 6월 29일까지 정리하는 흐름으로 이해했습니다.\n백도하: 자료 전환은 도면과 계약서를 제외한 제한 시범 범위입니다. CRM 계약은 아직 서명되지 않았고, 재무팀의 예산 판단도 아직 이뤄지지 않았습니다. 일정 연계에서는 한 건은 조사 완료, 다른 한 건은 새 날짜가 없어 일정 미정인 상태입니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "9ce6a00943a4ca1f470b8d4d9c3cf4dd3b7f68e2e331e645aecec4e19a0e4e71",
+    "selected_deal_ids": [
+      "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+      "b64a61e9-e961-5a35-b788-258dea5d9621",
+      "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 76,
+          "text": "영업 담당자: 오늘은 6월 26일 기준으로, 제한 자료를 어디까지 반입할 수 있는지와 다음 달에 먼저 볼 일을 나눠서 확인하고 싶습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 77,
+          "end": 97,
+          "text": "먼저 자료 범위부터 여쭤봐도 될까요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 98,
+          "end": 135,
+          "text": "백도하: 6월 22일에 답을 받았는데, 제한적인 시범만 허용됐어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 136,
+          "end": 181,
+          "text": "프로젝트 이름과 진행 단계, 요청된 일정과 확정된 일정 정도만 넣을 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 182,
+          "end": 200,
+          "text": "실도면과 계약서는 아직 제외예요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 201,
+          "end": 276,
+          "text": "영업 담당자: 그러면 이번 시범에서 다루는 것은 이름·단계·일정 정보이고, 실제 도면이나 계약 관련 자료는 반입 대상이 아닌 상태군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 277,
+          "end": 284,
+          "text": "백도하: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 285,
+          "end": 322,
+          "text": "관리자가 내려받는 방식은 시험해 봤고 그 결과는 괜찮다고 봤습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 323,
+          "end": 357,
+          "text": "그렇다고 모든 자료를 옮겨도 된다는 승인을 받은 건 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 358,
+          "end": 412,
+          "text": "영업 담당자: 다운로드 시험이 가능했다는 점과 전체 자료 이전 승인은 별개로 보는 게 맞겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 413,
+          "end": 452,
+          "text": "도면이나 계약서를 넣어 보자는 요청은 지금 범위에 포함되지 않는 거죠?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 453,
+          "end": 462,
+          "text": "백도하: 맞아요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 463,
+          "end": 479,
+          "text": "그 자료들은 아직 제외입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 480,
+          "end": 530,
+          "text": "제한 시범이 끝난 뒤에 범위를 다시 볼 수는 있지만, 지금 허용된 내용으로 이해해 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 531,
+          "end": 545,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 546,
+          "end": 621,
+          "text": "그럼 자료 전환 지원 쪽에서는 허용된 항목만 접근권한을 확인하고, 실도면과 계약서는 건드리지 않는 조건으로 진행을 검토하면 되겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 622,
+          "end": 653,
+          "text": "백도하: 그 조건이면 제한 시범의 허용 범위에 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 654,
+          "end": 689,
+          "text": "다만 지금 단계에서 전체 자료가 옮겨진다고 생각하면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 690,
+          "end": 727,
+          "text": "영업 담당자: 네, 제한된 정보와 전체 자료 이전을 구분하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 728,
+          "end": 759,
+          "text": "다음은 프로젝트 CRM과 재무 판단 상황을 여쭙겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 760,
+          "end": 802,
+          "text": "백도하: 재무팀은 제한 시범을 먼저 본 다음 달에 예산을 판단하기로 했어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 803,
+          "end": 825,
+          "text": "아직 CRM 계약에 서명한 건 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 826,
+          "end": 861,
+          "text": "영업 담당자: 현재 검토 예상금액은 어느 정도로 보고 계신가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 862,
+          "end": 891,
+          "text": "백도하: 삼천이백만 원으로 보던 금액은 그대로입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 892,
+          "end": 925,
+          "text": "다만 이번 달에 계약한 금액이나 실적으로 보기는 어렵습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 926,
+          "end": 993,
+          "text": "영업 담당자: 금액 검토는 유지되지만, 이번 달 계약 체결은 아직 없고 재무팀의 예산 판단은 다음 달로 예정된 상태군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 994,
+          "end": 1001,
+          "text": "백도하: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1002,
+          "end": 1043,
+          "text": "그리고 고객 투자위원회 일정이 아직 나오지 않은 프로젝트가 두 건 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1044,
+          "end": 1071,
+          "text": "그 두 건도 고객 승인 대기 상태가 그대로입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1072,
+          "end": 1124,
+          "text": "영업 담당자: 그 두 프로젝트는 위원회 일정이 정해져야 다음 승인 단계로 움직일 수 있겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1125,
+          "end": 1155,
+          "text": "지금은 별도의 일정이 나온 것으로 보기는 어렵겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1156,
+          "end": 1167,
+          "text": "백도하: 그렇습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1168,
+          "end": 1218,
+          "text": "재무팀의 예산 판단도 아직 이뤄지지 않았고, 고객 쪽 승인 대기 두 건도 변한 게 없어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1219,
+          "end": 1294,
+          "text": "영업 담당자: 그러면 CRM에서는 사업장별 제안과 승인 조건을 계속 추적하되, 계약이나 예산이 이미 정해진 것처럼 다루지는 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1295,
+          "end": 1312,
+          "text": "이제 현장조사 일정 쪽을 보죠."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1313,
+          "end": 1338,
+          "text": "백도하: 일정이 밀린 건은 두 가지가 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1339,
+          "end": 1394,
+          "text": "하나는 가동시간 문제로 조사가 사흘 늦어졌고, 다른 하나는 병가 때문에 다시 날짜를 잡는 중입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1395,
+          "end": 1459,
+          "text": "영업 담당자: 가동시간 때문에 미뤄진 건은 사흘 뒤에 실제 조사를 진행한 건가요, 아니면 날짜만 다시 잡은 건가요?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1460,
+          "end": 1492,
+          "text": "백도하: 사흘 뒤에 조사를 했고, 완료 확인도 받았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1493,
+          "end": 1514,
+          "text": "그 건은 이제 조사 완료로 봐야 해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1515,
+          "end": 1529,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1530,
+          "end": 1571,
+          "text": "그 건은 변경 사유가 남아 있더라도 현재 상태는 완료로 연결하면 되겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 1572,
+          "end": 1579,
+          "text": "백도하: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 1580,
+          "end": 1616,
+          "text": "반면 병가 때문에 재조정 중인 한 건은 아직 새 날짜가 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 1617,
+          "end": 1652,
+          "text": "같은 사유로 묶으면 안 되고, 이 건은 일정 대기로 봐 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 1653,
+          "end": 1712,
+          "text": "영업 담당자: 새 날짜가 정해지지 않은 한 건은 외부 일정표에서 읽을 일정이 아직 없는 상태로 두겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 1713,
+          "end": 1736,
+          "text": "취소로 바뀐 조사는 없다는 점도 맞습니까?"
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 1737,
+          "end": 1757,
+          "text": "백도하: 네, 취소된 건은 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 1758,
+          "end": 1785,
+          "text": "하나는 완료됐고, 하나는 날짜를 기다리고 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0050",
+          "start": 1786,
+          "end": 1842,
+          "text": "영업 담당자: 그 구분이면 현장조사 일정 연계에서 변경 사유와 현재 상태를 다르게 볼 수 있겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0051",
+          "start": 1843,
+          "end": 1882,
+          "text": "완료된 건과 일정 미정인 건을 같은 대기 항목으로 처리하지 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0052",
+          "start": 1883,
+          "end": 1892,
+          "text": "백도하: 좋아요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0053",
+          "start": 1893,
+          "end": 1943,
+          "text": "외부 일정표에 새 날짜가 생기기 전까지는 병가 건을 억지로 일정에 넣지 않는 게 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0054",
+          "start": 1944,
+          "end": 1984,
+          "text": "영업 담당자: 그 부분은 현재 확인된 정보 안에서만 연결하면 되겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0055",
+          "start": 1985,
+          "end": 2019,
+          "text": "마지막으로 제한 시범에서 무엇을 먼저 확인할지 이야기해 보죠."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "b64a61e9-e961-5a35-b788-258dea5d9621"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0056",
+          "start": 2020,
+          "end": 2068,
+          "text": "백도하: 제가 6월 29일까지 여섯 프로젝트를 대상으로 확인 항목을 정리할 예정입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0057",
+          "start": 2069,
+          "end": 2105,
+          "text": "각 프로젝트에서 아직 남은 조건을 찾아낼 수 있는지 보려고 해요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0058",
+          "start": 2106,
+          "end": 2153,
+          "text": "영업 담당자: 여섯 프로젝트에서 남은 조건을 찾을 수 있는지를 보는 것이 핵심이군요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0059",
+          "start": 2154,
+          "end": 2177,
+          "text": "그 확인에는 실도면이 필요하다고 보시나요?"
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0060",
+          "start": 2178,
+          "end": 2187,
+          "text": "백도하: 아니요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0061",
+          "start": 2188,
+          "end": 2213,
+          "text": "이번 검토에는 실제 도면이 필요하지 않습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0062",
+          "start": 2214,
+          "end": 2267,
+          "text": "이름과 단계, 요청·확정 일정처럼 제한 시범에서 볼 수 있는 정보로 충분한지부터 확인할 거예요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0063",
+          "start": 2268,
+          "end": 2320,
+          "text": "영업 담당자: 그 범위라면 도면 반입 여부와 별개로 시범의 확인 항목을 정리할 수 있겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0064",
+          "start": 2321,
+          "end": 2365,
+          "text": "다만 여섯 프로젝트에서 실제로 남은 조건이 모두 드러나는지는 확인해 봐야겠네요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0065",
+          "start": 2366,
+          "end": 2376,
+          "text": "백도하: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0066",
+          "start": 2377,
+          "end": 2427,
+          "text": "시범 결과를 본 다음에 예산을 판단하고, 도면까지 확대해서 허용할지는 따로 논의할 겁니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0067",
+          "start": 2428,
+          "end": 2451,
+          "text": "두 사안을 한 번에 결정하는 건 아니에요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0068",
+          "start": 2452,
+          "end": 2533,
+          "text": "영업 담당자: 예산 판단과 도면 범위 확대는 각각 별도로 논의하고, 현재는 제한 정보로 여섯 프로젝트의 남은 조건을 확인하는 단계로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0069",
+          "start": 2534,
+          "end": 2541,
+          "text": "백도하: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0070",
+          "start": 2542,
+          "end": 2603,
+          "text": "제가 6월 29일까지 확인 항목을 정리하고, 그 뒤에 어떤 자료 범위를 더 볼 수 있을지 판단할 수 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0071",
+          "start": 2604,
+          "end": 2632,
+          "text": "지금은 제한 시범 조건을 넘기지 않는 게 중요해요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0072",
+          "start": 2633,
+          "end": 2715,
+          "text": "영업 담당자: 그럼 오늘 기준으로는 제한된 이름·단계·일정만 자료 전환 검토 대상이고, CRM은 아직 서명 전이며 재무팀의 예산 판단을 기다립니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+            "b64a61e9-e961-5a35-b788-258dea5d9621",
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0073",
+          "start": 2716,
+          "end": 2796,
+          "text": "현장조사는 사흘 뒤 완료된 건과 일정 미정인 한 건을 나눠 관리하고, 여섯 프로젝트 확인 항목은 6월 29일까지 정리하는 흐름으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+            "b64a61e9-e961-5a35-b788-258dea5d9621",
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0074",
+          "start": 2797,
+          "end": 2834,
+          "text": "백도하: 자료 전환은 도면과 계약서를 제외한 제한 시범 범위입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+            "b64a61e9-e961-5a35-b788-258dea5d9621",
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0075",
+          "start": 2835,
+          "end": 2882,
+          "text": "CRM 계약은 아직 서명되지 않았고, 재무팀의 예산 판단도 아직 이뤄지지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+            "b64a61e9-e961-5a35-b788-258dea5d9621",
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0076",
+          "start": 2883,
+          "end": 2934,
+          "text": "일정 연계에서는 한 건은 조사 완료, 다른 한 건은 새 날짜가 없어 일정 미정인 상태입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+            "b64a61e9-e961-5a35-b788-258dea5d9621",
+            "e1dd51d7-495c-56a9-9b39-40a96c0fcb57"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-26T11:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "074cdde0-7af4-5165-971e-6a8dd39dfeb7",
+      "name": "해솔에너지(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "96d5d315-fc34-5435-ad3c-ac4b72104e65",
+      "name": "백도하(가상)"
+    },
+    "activity": {
+      "id": "a4dc34ac-f007-52c8-8ed9-3a695a75c0e7",
+      "starts_at": "2026-06-26T11:00:00+09:00",
+      "title": "제한 자료 반입 허용과 다음 달 우선과제"
+    },
+    "deals": [
+      {
+        "id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "company_id": "company08",
+        "contact_id": "contact08",
+        "title": "프로젝트 영업 CRM",
+        "description": "사업장별 제안·현장조사·승인 조건을 추적하는 프로젝트 CRM. 내부 검토와 외부 인허가를 분리.",
+        "deal_amount": 32000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "observed_state": "6건 표시검증 완료;재무검토 중"
+      },
+      {
+        "id": "b64a61e9-e961-5a35-b788-258dea5d9621",
+        "company_id": "company08",
+        "contact_id": "contact08",
+        "title": "현장조사 일정 연계",
+        "description": "프로젝트별 조사 일정과 변경 사유를 외부 일정표에서 읽는 연계 기능.",
+        "deal_amount": 7000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "b64a61e9-e961-5a35-b788-258dea5d9621",
+        "observed_state": "1건3일연기·1건일정미정"
+      },
+      {
+        "id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "company_id": "company08",
+        "contact_id": "contact08",
+        "title": "보안·자료전환 지원",
+        "description": "사업장 도면과 계약 관련 자료의 접근권한 검토 및 초기 전환 지원.",
+        "deal_amount": 6000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "observed_state": "가상권한시험 통과;실자료 반입승인 결재 중"
+      }
+    ],
+    "previous_reports": [
+      {
+        "sales_deal_id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "report_date": "2026-06-05",
+        "body": "6개 프로젝트 중2건은 조사완료 후 고객 투자위원회 일정 대기이며 인허가 거절이 아닙니다. CRM18명·연3,200만 원은 검토범위이며 예산승인 전입니다. 검토프로젝트6건은조사완료2·일정협의2·초기제안2이며 계약완료건은없습니다. 동일고객의다른사업장은프로젝트·투자일정·접근조건을분리합니다. 투자위원회일정미정만확인됐으며 예산부족·기술부적합원인은미확인입니다.",
+        "submission_id": "996e1d8e-53cc-53fb-a957-54ad3f444e17"
+      },
+      {
+        "sales_deal_id": "b64a61e9-e961-5a35-b788-258dea5d9621",
+        "report_date": "2026-06-05",
+        "body": "일정연계는 요청일·고객확정 여부·변경사유를 구분해야 합니다. 미응답조사일정은담당확인업무로남기며 일괄재연락기한은미정입니다. 조사완료는현장확인·실제일자가필요하고 지난예정일만으로완료처리하지않습니다.",
+        "submission_id": "996e1d8e-53cc-53fb-a957-54ad3f444e17"
+      },
+      {
+        "sales_deal_id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "report_date": "2026-06-05",
+        "body": "실도면 반입은 미허용이며 보안검토 전 가상 사업장·단순배치 예시만 사용합니다. 가상파일다운로드권한시험은가능하지만 실도면반입은미승인입니다. 삭제요청절차·접근기록확인이필요하며 보관기간은보안팀결정전미정입니다.",
+        "submission_id": "996e1d8e-53cc-53fb-a957-54ad3f444e17"
+      },
+      {
+        "sales_deal_id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "report_date": "2026-06-12",
+        "body": "6건 중1건의 복수 대기사유 표시 보완이 필요합니다.",
+        "submission_id": "bb4b8fe4-2e4d-54c8-973e-b1526a351ab3"
+      },
+      {
+        "sales_deal_id": "b64a61e9-e961-5a35-b788-258dea5d9621",
+        "report_date": "2026-06-12",
+        "body": "미정 일정은 담당자 회신 전 비워 두며 사업장 식별번호로 일정 혼입을 방지해야 합니다.",
+        "submission_id": "bb4b8fe4-2e4d-54c8-973e-b1526a351ab3"
+      },
+      {
+        "sales_deal_id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "report_date": "2026-06-12",
+        "body": "관리자2명 다운로드·일반사용자 조회·이력확인 조건을 시험하기 전 실도면은 미제공입니다.",
+        "submission_id": "bb4b8fe4-2e4d-54c8-973e-b1526a351ab3"
+      },
+      {
+        "sales_deal_id": "41f27fcd-7e27-56a5-9b8e-7c00321f3787",
+        "report_date": "2026-06-19",
+        "body": "복수대기사유 표시 수정과6건 재확인이 완료됐으나 고객 투자위원회 일정은 미정입니다. 18명·연3,200만 원 제안은 재무검토 중이며 계약과 예산심사일은 미확정입니다.",
+        "submission_id": "0278ae95-28d7-5562-aa0e-2521aa0ddd12"
+      },
+      {
+        "sales_deal_id": "e1dd51d7-495c-56a9-9b39-40a96c0fcb57",
+        "report_date": "2026-06-19",
+        "body": "가상도면에서 관리자외 다운로드 차단·이력은 확인됐고 실자료 반입승인은 결재 중입니다.",
+        "submission_id": "0278ae95-28d7-5562-aa0e-2521aa0ddd12"
+      }
+    ],
+    "trade_history": []
+  },
+  "attachments": []
+}

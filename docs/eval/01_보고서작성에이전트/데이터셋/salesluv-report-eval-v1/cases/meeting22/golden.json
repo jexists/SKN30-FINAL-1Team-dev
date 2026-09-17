@@ -1,0 +1,196 @@
+{
+  "case_id": "meeting22",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting22-f01",
+      "claim": "6월16일 CRM10명·부가세 별도 연1,800만 원 계약이 양사서명 완료됐고 개시는7월1일 예정입니다.",
+      "sales_deal_id": "deal04-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 164,
+          "end": 269,
+          "quote": "CRM은 6월 16일 양쪽 서명이 모두 완료된 상태입니다. 재무 승인 뒤에 서명까지 마쳤고, 내부 상담사 10명이 사용하는 조건으로 부가가치세 별도 연 1,800만 원 계약이 성립했습니다.",
+          "segment_ids": [
+            "S0004",
+            "S0005"
+          ]
+        },
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 381,
+          "end": 422,
+          "quote": "CRM은 7월 1일 개시 예정이며, 현재는 운영 전 계정 준비 단계입니다.",
+          "segment_ids": [
+            "S0009"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting22-f01"
+    },
+    {
+      "id": "meeting22-f02",
+      "claim": "결제연동은 외부조회 권한과 추가사용료 미확정으로 보류하며 CRM 계약에 포함되지 않습니다.",
+      "sales_deal_id": "deal04-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 846,
+          "end": 957,
+          "quote": "현재 기존 결제시스템 계약에는 외부 조회 권한이 없는 것으로 확인됐습니다. 공급사로부터 답변은 받았지만, 외부 조회 권한을 추가할 수 있는지와 그에 따른 사용료가 얼마인지가 아직 정해지지 않았습니다.",
+          "segment_ids": [
+            "S0021",
+            "S0022"
+          ]
+        },
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 1196,
+          "end": 1303,
+          "quote": "결제 연동은 별도로 보류하고, CRM은 우선 수동 확인을 전제로 시작하는 방향입니다. 결제 연동 비용이나 결제 완료를 말하는 것은 아직 이르며, 해당 서비스는 CRM 계약에 포함되지 않습니다.",
+          "segment_ids": [
+            "S0029",
+            "S0030"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting22-f02"
+    },
+    {
+      "id": "meeting22-f03",
+      "claim": "교육안 방식은 검토됐지만 실제교육·날짜·250만 원 비용 승인은 미완료입니다.",
+      "sales_deal_id": "deal04-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 1532,
+          "end": 1604,
+          "quote": "신규 4명과 기존 6명을 구분해 등록·변경·취소 상담을 실습하는 교육 방식은 검토됐습니다. 실제 교육은 아직 진행되지 않았습니다.",
+          "segment_ids": [
+            "S0037",
+            "S0038"
+          ]
+        },
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 1681,
+          "end": 1736,
+          "quote": "실제 교육은 아직 진행되지 않았고, 교육 날짜도 미정입니다. 교육안 검토와 실제 교육은 별개입니다.",
+          "segment_ids": [
+            "S0042",
+            "S0043"
+          ]
+        },
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 1806,
+          "end": 1868,
+          "quote": "교육비 250만 원은 별도 승인 대기 중입니다. 비용이 승인됐거나 교육이 끝났다고 볼 수 있는 상태는 아닙니다.",
+          "segment_ids": [
+            "S0045",
+            "S0046"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting22-f03"
+    },
+    {
+      "id": "meeting22-f04",
+      "claim": "문시우는6월19일까지 권한목록, 영업 담당자는6월22일까지10명 접근 테스트 결과를 전달할 예정입니다.",
+      "sales_deal_id": "deal04-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 2105,
+          "end": 2166,
+          "quote": "6월 19일까지 10명의 부서·권한 목록을 받으면, 저희는 운영 계정을 준비하고 접근 테스트를 진행하겠습니다.",
+          "segment_ids": [
+            "S0055"
+          ]
+        },
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 2254,
+          "end": 2350,
+          "quote": "영업 담당자가 6월 22일까지 10명에 대한 접근 테스트 결과를 전달할 예정입니다. 계정 준비가 끝났다고 보는 기준은 10명 모두 지정된 권한으로 접속이 확인된 상태입니다.",
+          "segment_ids": [
+            "S0058",
+            "S0059"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting22-f04"
+    },
+    {
+      "id": "meeting22-f05",
+      "claim": "신규 계약 실적은 CRM1건1,800만 원이며 교육생 결제·연동비·교육비·수금은 포함하지 않습니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 2572,
+          "end": 2653,
+          "quote": "이번에 확정된 것은 수강 상담 CRM 1건, 부가가치세 별도 연 1,800만 원입니다. 서명이 완료된 CRM 계약만 확정된 영업 계약으로 봅니다.",
+          "segment_ids": [
+            "S0066",
+            "S0067"
+          ]
+        },
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 2723,
+          "end": 2796,
+          "quote": "교육생 결제와 수강 등록은 이번 CRM 계약 실적에 포함하지 않습니다. 결제 연동비와 교육비도 현재 확정 금액에 포함되지 않습니다.",
+          "segment_ids": [
+            "S0070",
+            "S0071"
+          ]
+        },
+        {
+          "path": "transcripts/meeting22.txt",
+          "start": 2854,
+          "end": 2927,
+          "quote": "네. 두 비용은 아직 예정 상태이고, 청구나 입금 여부도 별도로 확인해야 합니다. 현재 확정된 것은 서명 완료된 CRM 계약입니다.",
+          "segment_ids": [
+            "S0073",
+            "S0074",
+            "S0075"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting22-f05"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting22-f01",
+    "meeting22-f02",
+    "meeting22-f03",
+    "meeting22-f04",
+    "meeting22-f05"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

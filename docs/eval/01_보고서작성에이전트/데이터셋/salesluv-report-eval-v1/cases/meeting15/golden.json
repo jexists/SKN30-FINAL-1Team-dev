@@ -1,0 +1,357 @@
+{
+  "case_id": "meeting15",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting15-f01",
+      "claim": "서비스6건 사유는 조회됐으나 담당기사 변경1건의 표시 수정이 필요합니다.",
+      "sales_deal_id": "deal06-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 577,
+          "end": 680,
+          "quote": "류온재: 서비스 전체 여섯 건은 사유 자체는 조회됐습니다. 부품 대기 두 건도 왜 기다리는지 보이기는 해요. 그런데 담당기사가 바뀐 한 건은 첫 화면에 예전 기사 이름이 남아 있습니다.",
+          "segment_ids": [
+            "S0014",
+            "S0015",
+            "S0016"
+          ]
+        },
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 914,
+          "end": 1016,
+          "quote": "영업 담당자: 그 한 건의 표시 수정이 필요하다는 점으로 이해했습니다. 나머지 여섯 건의 사유 조회와는 별개로, 기사 변경 건에서는 현재 담당자와 이전 방문자를 구분하는지 보겠습니다.",
+          "segment_ids": [
+            "S0022",
+            "S0023"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting15-f01"
+    },
+    {
+      "id": "meeting15-f02",
+      "claim": "장비10건 중1건의 설치일이 원본대장에도 없어 확인이 필요합니다.",
+      "sales_deal_id": "deal06-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 2081,
+          "end": 2163,
+          "quote": "류온재: 장비 대장 쪽도 확인하고 싶습니다. 열 건을 대조했는데 아홉 건은 설치일이 맞았고, 한 건은 원본대장에도 설치일이 비어 있다고 들었습니다.",
+          "segment_ids": [
+            "S0049",
+            "S0050"
+          ]
+        },
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 2164,
+          "end": 2264,
+          "quote": "영업 담당자: 맞습니다. 열 건 중 아홉 건은 설치일이 일치했고, 한 건은 원본대장 자체에 날짜가 없습니다. 그 한 건은 임의로 날짜를 채우기보다 미확인으로 두는 것이 안전합니다.",
+          "segment_ids": [
+            "S0051",
+            "S0052",
+            "S0053"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting15-f02"
+    },
+    {
+      "id": "meeting15-f03",
+      "claim": "30분 내 접수안내·배정안을 검토하며 수리완료 보장이나 야간지원 승인은 아닙니다.",
+      "sales_deal_id": "deal06-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 3909,
+          "end": 4021,
+          "quote": "영업 담당자: 검토 중인 안은 고객 요청을 받은 뒤 30분 안에 접수 사실을 알리고 담당자를 배정하는 것입니다. 여기서 말하는 30분은 수리를 끝내는 시간이 아니라 접수 안내와 배정에 관한 기준입니다.",
+          "segment_ids": [
+            "S0092",
+            "S0093"
+          ]
+        },
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 4104,
+          "end": 4203,
+          "quote": "영업 담당자: 수리완료를 30분 안에 보장하는 내용은 아닙니다. 30분은 접수 사실을 알리고 담당자를 배정하는 안을 검토하는 기준일 뿐이며, 수리 완료 약속은 포함하지 않습니다.",
+          "segment_ids": [
+            "S0097",
+            "S0098"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting15-f03"
+    },
+    {
+      "id": "meeting15-f04",
+      "claim": "6월12일까지 영업 담당자는 기사표시 수정, 류온재는 설치일 원본문서 확인을 할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 1082,
+          "end": 1129,
+          "quote": "영업 담당자: 현재 담당자와 이전 방문자를 나눈 화면은 6월 12일까지 보내겠습니다.",
+          "segment_ids": [
+            "S0026"
+          ]
+        },
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 2464,
+          "end": 2521,
+          "quote": "류온재: 원본 설치확인서는 6월 12일까지 찾아보겠습니다. 찾지 못하면 날짜 미확인으로 답하면 되겠죠?",
+          "segment_ids": [
+            "S0058",
+            "S0059"
+          ]
+        },
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 2561,
+          "end": 2628,
+          "quote": "영업 담당자: 네. 6월 12일까지 원본 설치확인서를 확인하고, 찾지 못하면 날짜 미확인으로 답하는 것으로 이해했습니다.",
+          "segment_ids": [
+            "S0061",
+            "S0062"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting15-f04"
+    },
+    {
+      "id": "meeting15-f05",
+      "claim": "동일장비·동일문제재접수는기존이력에연결하고 새문제여부불명확시확인이필요합니다.",
+      "sales_deal_id": "deal06-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 1265,
+          "end": 1319,
+          "quote": "영업 담당자: 같은 장비에서 같은 문제로 다시 접수되면 기존 이력에 연결하는 방식으로 보겠습니다.",
+          "segment_ids": [
+            "S0030"
+          ]
+        },
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 1449,
+          "end": 1544,
+          "quote": "영업 담당자: 그 경우에는 바로 합치지 않겠습니다. 새 문제인지 판단이 필요하다는 확인을 담당자에게 남기고, 필요한 내용을 확인한 뒤 연결 여부를 정하는 흐름이 맞습니다.",
+          "segment_ids": [
+            "S0034",
+            "S0035"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting15-f05"
+    },
+    {
+      "id": "meeting15-f06",
+      "claim": "전체장비식별번호·모델로대조하며 끝4자리일치만으로합치지않고 사진인식은사용하지않습니다.",
+      "sales_deal_id": "deal06-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 2971,
+          "end": 3055,
+          "quote": "영업 담당자: 끝 네 자리만 일치한다고 같은 장비로 묶지 않겠습니다. 전체 장비 식별번호와 모델을 대조해서 같은 장비인지 확인하는 방식으로 보겠습니다.",
+          "segment_ids": [
+            "S0070",
+            "S0071"
+          ]
+        },
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 3123,
+          "end": 3223,
+          "quote": "영업 담당자: 이번 시범에서는 사진 인식 기능을 사용하지 않습니다. 식별번호가 보이지 않는 사진은 사람이 다시 확인해야 할 자료로 남기고, 번호와 모델을 확인한 뒤 대조하겠습니다.",
+          "segment_ids": [
+            "S0074",
+            "S0075"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting15-f06"
+    },
+    {
+      "id": "meeting15-f07",
+      "claim": "가동중단·성능저하·단순문의3등급을검토하며 등급별출동시간은미확정입니다.",
+      "sales_deal_id": "deal06-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 3523,
+          "end": 3631,
+          "quote": "영업 담당자: 세 가지 등급으로 나누어 검토하는 안을 생각하고 있습니다. 가동 중단, 성능 저하, 단순 문의로 구분하되, 각 등급에 실제로 몇 분 안에 출동한다는 시간은 아직 정하지 않겠습니다.",
+          "segment_ids": [
+            "S0083",
+            "S0084"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting15-f07"
+    },
+    {
+      "id": "meeting15-f08",
+      "claim": "30분접수목표의시작은연락창구수신시각이며 아직서비스계약조건으로확정하지않았습니다.",
+      "sales_deal_id": "deal06-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 4283,
+          "end": 4385,
+          "quote": "영업 담당자: 시작점은 운영 연락창구가 요청을 수신한 시각으로 두는 안입니다. 담당기사가 읽은 시각부터 계산하는 방식은 접수 후 대기시간을 반영하지 못하므로 기준으로 삼지 않겠습니다.",
+          "segment_ids": [
+            "S0101",
+            "S0102"
+          ]
+        },
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 4455,
+          "end": 4546,
+          "quote": "영업 담당자: 아직 실제 서비스계약 조건으로 확정된 내용은 아닙니다. 현재는 연락창구 수신 시각을 시작점으로 하는 30분 접수 목표를 제안하고 검토하는 단계입니다.",
+          "segment_ids": [
+            "S0105",
+            "S0106"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting15-f08"
+    },
+    {
+      "id": "meeting15-f09",
+      "claim": "대기서비스2건은부품주문요청단계이고 부품도착·교체는미완료입니다.",
+      "sales_deal_id": "deal06-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 248,
+          "end": 370,
+          "quote": "영업 담당자: 현재 확인된 대기 서비스는 두 건입니다. 두 건 모두 부품 주문 요청을 남긴 단계이고, 부품이 현장에 도착했거나 교체가 끝난 상태는 아닙니다. 그래서 지금 고객에게는 부품 대기 상태라고 안내하고 있습니다.",
+          "segment_ids": [
+            "S0006",
+            "S0007",
+            "S0008"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting15-f09"
+    },
+    {
+      "id": "meeting15-f10",
+      "claim": "수리완료·고객확인은분리하며 무응답건종결정책은미정입니다.",
+      "sales_deal_id": "deal06-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 1626,
+          "end": 1718,
+          "quote": "영업 담당자: 수리완료와 고객확인은 별도로 표시하겠습니다. 고객에게 연락을 시도했다는 기록도 남길 수 있지만, 답이 없으면 확인을 받은 것으로 처리할 수는 없습니다.",
+          "segment_ids": [
+            "S0038",
+            "S0039"
+          ]
+        },
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 1799,
+          "end": 1889,
+          "quote": "영업 담당자: 응답이 없다는 사실과 고객 확인이 끝났다는 사실은 다릅니다. 무응답 건을 어떤 조건에서 종결할지는 아직 운영팀에서 정책을 정리해야 하는 부분입니다.",
+          "segment_ids": [
+            "S0042",
+            "S0043"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting15-f10"
+    },
+    {
+      "id": "meeting15-f11",
+      "claim": "설치일수정은근거·수정자를보존하며 구두경과연수만으로날짜를만들지않습니다.",
+      "sales_deal_id": "deal06-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 2762,
+          "end": 2871,
+          "quote": "영업 담당자: 설치일을 수정하는 경우에는 수정자와 근거 자료를 함께 확인할 수 있어야 합니다. ‘삼 년 전쯤’이라는 구두 경과만으로 특정 날짜를 만들어 넣거나, 임의로 첫날을 입력하지 않겠습니다.",
+          "segment_ids": [
+            "S0066",
+            "S0067"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting15-f11"
+    },
+    {
+      "id": "meeting15-f12",
+      "claim": "주간창구는있지만 야간담당·대체연락체계는승인전입니다.",
+      "sales_deal_id": "deal06-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting15.txt",
+          "start": 4641,
+          "end": 4744,
+          "quote": "영업 담당자: 현재 주간 내근 연락창구는 있지만, 야간 협력기사 담당과 대체 연락체계는 승인 전입니다. 야간 지원이 가능하다고 전제하거나 연락처를 바로 공유할 수 있는 상태는 아닙니다.",
+          "segment_ids": [
+            "S0109",
+            "S0110"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting15-f12"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting15-f01",
+    "meeting15-f02",
+    "meeting15-f03",
+    "meeting15-f04"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

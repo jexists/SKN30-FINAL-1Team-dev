@@ -1,0 +1,297 @@
+{
+  "case_id": "meeting08",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting08-f01",
+      "claim": "6개 프로젝트 중2건은 조사완료 후 고객 투자위원회 일정 대기이며 인허가 거절이 아닙니다.",
+      "sales_deal_id": "deal08-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 273,
+          "end": 384,
+          "quote": "현재 검토 중인 프로젝트는 모두 여섯 건이고, 그중 두 건은 현장조사가 끝난 상태지만 고객 투자위원회 일정을 기다리고 있는 것으로 이해했습니다. 이 두 건을 인허가 거절로 표시하면 안 되는 것이고요.",
+          "segment_ids": [
+            "S0006",
+            "S0007"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting08-f01"
+    },
+    {
+      "id": "meeting08-f02",
+      "claim": "일정연계는 요청일·고객확정 여부·변경사유를 구분해야 합니다.",
+      "sales_deal_id": "deal08-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 1996,
+          "end": 2063,
+          "quote": "화면에는 요청일, 고객 확정 여부, 일정이 바뀌었는지, 바뀌었다면 이유가 무엇인지가 서로 다른 값으로 보이게 하겠습니다.",
+          "segment_ids": [
+            "S0044"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting08-f02"
+    },
+    {
+      "id": "meeting08-f03",
+      "claim": "실도면 반입은 미허용이며 보안검토 전 가상 사업장·단순배치 예시만 사용합니다.",
+      "sales_deal_id": "deal08-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 3066,
+          "end": 3169,
+          "quote": "실제 도면은 아직 허용할 수 없습니다. 우선 가상 사업장 이름과 단순한 배치 예시만 제공할 수 있습니다. 보안팀이 저장 위치와 다운로드 권한을 확인하기 전에는 실자료를 넣지 않겠습니다.",
+          "segment_ids": [
+            "S0070",
+            "S0071",
+            "S0072"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting08-f03"
+    },
+    {
+      "id": "meeting08-f04",
+      "claim": "CRM18명·연3,200만 원은 검토범위이며 예산승인 전입니다.",
+      "sales_deal_id": "deal08-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 1489,
+          "end": 1548,
+          "quote": "사업개발은 열여덟 명이고 연간 삼천이백만 원으로 살펴보고 있습니다. 아직 투자 승인을 받은 것은 아닙니다.",
+          "segment_ids": [
+            "S0032",
+            "S0033"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting08-f04"
+    },
+    {
+      "id": "meeting08-f05",
+      "claim": "백도하는6월8일까지 프로젝트6건 진행표를 제공하고 영업 담당자는 저장·다운로드권한 문서를 전달할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 4846,
+          "end": 4939,
+          "quote": "네. 6월 8일까지 여섯 프로젝트 진행표를 드리겠습니다. 실제 도면이나 계약 관련 원자료가 아니라 비식별 진행표입니다. 저장 위치와 다운로드 권한 문서는 보내 주세요.",
+          "segment_ids": [
+            "S0114",
+            "S0115",
+            "S0116",
+            "S0117"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting08-f05"
+    },
+    {
+      "id": "meeting08-f06",
+      "claim": "검토프로젝트6건은조사완료2·일정협의2·초기제안2이며 계약완료건은없습니다.",
+      "sales_deal_id": "deal08-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 624,
+          "end": 718,
+          "quote": "여섯 건은 모두 아직 검토 중인 가상 프로젝트입니다. 현장조사 완료가 두 건, 조사일정을 협의하는 건이 두 건, 초기 제안 단계가 두 건이고 계약이 끝난 건은 없습니다.",
+          "segment_ids": [
+            "S0015",
+            "S0016"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting08-f06"
+    },
+    {
+      "id": "meeting08-f07",
+      "claim": "동일고객의다른사업장은프로젝트·투자일정·접근조건을분리합니다.",
+      "sales_deal_id": "deal08-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 945,
+          "end": 1057,
+          "quote": "사업장 단위로 프로젝트를 나누고, 각각의 투자 일정과 현장 접근 조건을 별도로 두는 구성이 맞겠습니다. 한 사업장에서 승인 소식이 생겨도 다른 사업장의 상태가 자동으로 바뀌지는 않도록 확인해야 합니다.",
+          "segment_ids": [
+            "S0021",
+            "S0022"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting08-f07"
+    },
+    {
+      "id": "meeting08-f08",
+      "claim": "미응답조사일정은담당확인업무로남기며 일괄재연락기한은미정입니다.",
+      "sales_deal_id": "deal08-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 2289,
+          "end": 2378,
+          "quote": "재연락할 시점은 프로젝트 담당자가 고객과 맞춰야 합니다. 지금 일괄 기한을 정할 수는 없어요. 미응답 건은 담당자가 확인해야 할 업무라는 정도로 남겨야 합니다.",
+          "segment_ids": [
+            "S0051",
+            "S0052",
+            "S0053"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting08-f08"
+    },
+    {
+      "id": "meeting08-f09",
+      "claim": "조사완료는현장확인·실제일자가필요하고 지난예정일만으로완료처리하지않습니다.",
+      "sales_deal_id": "deal08-2",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 2387,
+          "end": 2473,
+          "quote": "조사 완료도 날짜가 지났다는 이유만으로 자동 처리하지 않겠습니다. 현장 담당자의 완료 확인과 실제 조사일자가 모두 있어야 완료로 볼 수 있도록 하겠습니다.",
+          "segment_ids": [
+            "S0054",
+            "S0055"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting08-f09"
+    },
+    {
+      "id": "meeting08-f10",
+      "claim": "가상파일다운로드권한시험은가능하지만 실도면반입은미승인입니다.",
+      "sales_deal_id": "deal08-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 3512,
+          "end": 3600,
+          "quote": "가상 파일 다운로드 권한을 시험하는 것은 가능하지만, 실도면을 넣어도 된다는 승인이 난 것은 아닙니다. 관리자 외 계정의 다운로드 차단 여부를 보고 싶습니다.",
+          "segment_ids": [
+            "S0082",
+            "S0083"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting08-f10"
+    },
+    {
+      "id": "meeting08-f11",
+      "claim": "삭제요청절차·접근기록확인이필요하며 보관기간은보안팀결정전미정입니다.",
+      "sales_deal_id": "deal08-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 3797,
+          "end": 3838,
+          "quote": "삭제 요청 절차와 접근 기록을 확인할 수 있는 방법을 함께 살펴보겠습니다.",
+          "segment_ids": [
+            "S0089"
+          ]
+        },
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 3969,
+          "end": 3997,
+          "quote": "보관기간은 보안팀 결정 전에는 미정으로 두겠습니다.",
+          "segment_ids": [
+            "S0093"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting08-f11"
+    },
+    {
+      "id": "meeting08-f12",
+      "claim": "투자위원회일정미정만확인됐으며 예산부족·기술부적합원인은미확인입니다.",
+      "sales_deal_id": "deal08-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 418,
+          "end": 490,
+          "quote": "투자위원회 일정이 아직 정해지지 않았다는 답만 받았어요. 예산이 부족하다거나 기술적으로 맞지 않는다는 결론도 들은 적이 없습니다.",
+          "segment_ids": [
+            "S0010",
+            "S0011"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting08-f12"
+    },
+    {
+      "id": "meeting08-f13",
+      "claim": "초기화면은프로젝트코드·담당자·확인조건·요청일정·확정여부중심을 요구합니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting08.txt",
+          "start": 1166,
+          "end": 1259,
+          "quote": "첫 화면에는 너무 많은 자료를 펼치기보다 프로젝트 코드, 담당자, 지금 확인해야 하는 조건, 요청한 일정, 그리고 고객이 확정했는지를 우선 보여 주는 구성이 어떨까요?",
+          "segment_ids": [
+            "S0026"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting08-f13"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting08-f01",
+    "meeting08-f02",
+    "meeting08-f03",
+    "meeting08-f04",
+    "meeting08-f05"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}

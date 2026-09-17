@@ -1,0 +1,160 @@
+{
+  "case_id": "daily11",
+  "report_kind": "daily",
+  "facts": [
+    {
+      "id": "daily11-f01",
+      "claim": "10명 운영계정 접근검증이6월22일 완료됐으며 지난주 계약의 이행이지 신규계약이 아닙니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "10명 운영계정 접근검증이6월22일 완료됐으며 지난주 계약의 이행이지 신규계약이 아닙니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily11-f02",
+      "claim": "교육은 미실시이며 일정·비용승인은 대기 중으로 계정접속 완료와 구분합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[1].values.body",
+          "quote": "교육은 미실시이며 일정·비용승인은 대기 중으로 계정접속 완료와 구분합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily11-f03",
+      "claim": "문시우는6월26일까지 취소2건·인계1건의 개시 전 테스트 결과를 전달할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[0].values.body",
+          "quote": "문시우는6월26일까지 취소2건·인계1건의 개시 전 테스트 결과를 전달할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily11-f04",
+      "claim": "관리자에게 필요한 다음 결정은 교육비와 참석시간 확보이며 미확정 연동비는 계약금액에 합산하지 않습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[0].common_report.body",
+          "quote": "관리자에게 필요한 다음 결정은 교육비와 참석시간 확보이며 미확정 연동비는 계약금액에 합산하지 않습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily11-f05",
+      "claim": "안내자료 수신 후3명 의견을 받았고1명은 승인상태 글자 가독성 개선을 요청했습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[4].values.body",
+          "quote": "안내자료 수신 후3명 의견을 받았고1명은 승인상태 글자 가독성 개선을 요청했습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily11-f06",
+      "claim": "CRM16명 검토는 유지하나 예산승인·계약·발주 일정은 미정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[2].values.body",
+          "quote": "CRM16명 검토는 유지하나 예산승인·계약·발주 일정은 미정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily11-f07",
+      "claim": "예약취소 연동은 테스트시간 미확정으로 미검증이며 운영연결은 열지 않았습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[3].values.body",
+          "quote": "예약취소 연동은 테스트시간 미확정으로 미검증이며 운영연결은 열지 않았습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily11-f08",
+      "claim": "다음 달 우선과제는 CRM 예산검토·창고테스트 지원이며6월26일까지 승인상태 확대 화면 예시를 요청합니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[1].common_report.body",
+          "quote": "다음 달 우선과제는 CRM 예산검토·창고테스트 지원이며6월26일까지 승인상태 확대 화면 예시를 요청합니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily11-f09",
+      "claim": "6월24일 CRM1,500만 원 계약 서명 완료,750만 원씩7월6일·10월6일 분납이며 입금은 미확인입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[5].values.body",
+          "quote": "6월24일 CRM1,500만 원 계약 서명 완료,750만 원씩7월6일·10월6일 분납이며 입금은 미확인입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily11-f10",
+      "claim": "장비대장 연동은 원본정리 전 보류하고 자료마감일은 미정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[6].values.body",
+          "quote": "장비대장 연동은 원본정리 전 보류하고 자료마감일은 미정입니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily11-f11",
+      "claim": "야간지원 예산은 미승인이고30분 접수목표와 실제 야간서비스 계약은 분리되어 있습니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.reports[7].values.body",
+          "quote": "야간지원 예산은 미승인이고30분 접수목표와 실제 야간서비스 계약은 분리되어 있습니다."
+        }
+      ],
+      "importance": "required"
+    },
+    {
+      "id": "daily11-f12",
+      "claim": "류온재는6월26일까지 연락·권한목록,영업 담당자는6월29일까지 역할별 접근검증을 할 예정입니다.",
+      "source_refs": [
+        {
+          "path": "report_sources.meetings[2].common_report.body",
+          "quote": "류온재는6월26일까지 연락·권한목록,영업 담당자는6월29일까지 역할별 접근검증을 할 예정입니다."
+        }
+      ],
+      "importance": "required"
+    }
+  ],
+  "required_fact_ids": [
+    "daily11-f01",
+    "daily11-f02",
+    "daily11-f03",
+    "daily11-f04",
+    "daily11-f05",
+    "daily11-f06",
+    "daily11-f07",
+    "daily11-f08",
+    "daily11-f09",
+    "daily11-f10",
+    "daily11-f11",
+    "daily11-f12"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "오늘 활동→거래처별 결과→미완료·문제→다음 업무. 원문 반복과 중복 집계를 피합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다."
+}

@@ -1,0 +1,1085 @@
+{
+  "transcript": "영업 담당자: 오늘은 두 가지를 나누어 확인하겠습니다. 하나는 제작 영업 CRM의 연간 제안에 대한 현재 결정이고, 다른 하나는 견적 버전 자동화 도구를 기존 CRM과 별개로 사용할 수 있는지에 대한 검토입니다. 두 사안의 결론이 같다고 전제하지 않고 각각 말씀을 듣겠습니다.\n진해온: 네. 우선 제작 영업 CRM의 연간 계약 제안은 진행하지 않기로 했습니다. 대표도 같은 입장이고, 이번 제안은 거절된 것으로 보면 됩니다. 비용을 월별로 나누어 청구하는 방식이라도 연간 의무가 남는다면 저희가 원하는 조건과는 맞지 않아요.\n영업 담당자: 월 단위로 해지할 수 있어야 한다는 조건이 충족되지 않기 때문에 연간 CRM 제안을 받아들이지 않으신다는 뜻으로 이해했습니다. 단순히 청구 주기만 월별로 바꾸는 방식은 원하는 해지 조건을 해결하지 못한다는 말씀이시죠.\n진해온: 맞습니다. 저희가 거절한 이유는 비용을 어떻게 나누느냐보다 계약 의무가 연간으로 묶이는지 여부예요. 월 단위 해지가 되지 않는다면 비용 분할은 대안이 아닙니다.\n영업 담당자: 알겠습니다. 그러면 이 결정은 제작 영업 CRM의 연간 제안에 한정된 것으로 보겠습니다. CRM은 의뢰, 제안, 계약, 제작 착수를 구분하고 고객 피드백이나 범위 변경을 추적하는 용도로 설명드렸지만, 그 기능이 필요하더라도 현재 계약 조건을 받아들이신다는 의미는 아니군요.\n진해온: 네, 기능에 대한 관심과 계약 결정은 나누어 봐야 합니다. 그리고 다른 회사와 계약했다고 결론 내리기에는 아직 확인된 게 없어요. 경쟁사와 계약한 상태라고 보시면 안 됩니다.\n영업 담당자: 다른 회사와의 계약 여부는 현재 미확인 상태로 이해하겠습니다. 필요하다면 다음 분기에 다시 검토할 수는 있지만, 지금은 연간 CRM 제안을 거절하신 상황이라는 말씀이시죠.\n진해온: 그렇습니다. 당장 다른 업체로 결정했다는 뜻은 아니고, 필요하면 다음 분기에 다시 볼 수 있다는 정도입니다. 지금 회의에서 CRM 계약이 진행된 것으로 이해하면 안 됩니다.\n영업 담당자: 네. 그럼 CRM 쪽은 여기서 잠시 두고, 견적 버전 자동화 도구를 따로 보겠습니다. 이 도구는 촬영일수, 수정회차, 산출물 범위를 입력해 견적 버전을 관리하는 용도이고, CRM 연간 계약을 받아야만 검토할 수 있는 항목으로 묶어 보지는 않겠습니다.\n진해온: 그 부분은 별도로 보고 있습니다. 6월 15일 수정본에서 세로형 영상이 새로운 산출물로 분리된 것은 확인했습니다. 이전에 섞여 보이던 항목이 분리된 점은 확인했고, 세 건의 범위 비교도 맞았습니다.\n영업 담당자: 6월 15일 수정본에서 세로형 영상이 별도 산출물로 나뉜 점과 세 건의 범위 비교가 맞았다는 점을 확인하신 거군요. 그 확인이 곧바로 도입 승인으로 이어지는 것은 아니고, 실제로 독립 사용이 가능한지를 먼저 보셔야 하는 상황으로 이해했습니다.\n진해온: 맞아요. 분류와 비교가 맞는지는 확인했지만, 견적도구를 독립적으로 쓸 수 있는지는 아직 따로 확인해야 합니다. 그래서 현재 도입을 승인한 상태는 아닙니다.\n영업 담당자: 독립 사용 여부를 판단하려면 기존 CRM에 연결되지 않아도 필요한 항목을 입력하고, 견적 결과를 외부로 꺼낼 수 있어야 하는지가 핵심이겠네요. 현재 확인하고 싶은 조건을 구체적으로 말씀해 주시면 그 범위에서 답을 준비하겠습니다.\n진해온: 기존 CRM 없이 사용할 수 있는지가 먼저입니다. 고객명을 반드시 넣어야 하는 구조라면 곤란할 수 있어서, 고객명 대신 프로젝트 코드를 넣고 견적도구를 독립적으로 사용할 수 있는지 확인해 주세요. 그리고 만든 견적을 PDF로 내려받을 수 있는지도 중요합니다.\n영업 담당자: 확인할 내용은 두 가지로 정리됩니다. 기존 CRM을 사용하지 않는 상태에서 고객명 대신 프로젝트 코드로 견적도구를 사용할 수 있는지, 그리고 견적 PDF를 내려받을 수 있는지입니다. 이 두 조건의 답변을 6월 22일까지 보내 달라는 요청으로 이해했습니다.\n진해온: 네. 6월 22일까지 두 조건에 대한 답을 보내 주세요. 답을 받은 뒤 제가 제작팀 의견을 모으겠습니다. 아직 사용 가능 여부를 확인하기 전이므로, 새로운 비용 제안은 그 다음에 받아도 됩니다.\n영업 담당자: 비용 조건을 먼저 제시하는 것이 아니라, 프로젝트 코드 기반의 독립 사용과 견적 PDF 반출 가능 여부를 확인한 뒤에 다음 판단을 하시겠다는 뜻이군요. 두 기능의 가능 여부가 확인되기 전에는 견적도구 도입을 승인한 것으로 볼 수 없겠습니다.\n진해온: 네, CRM 계약을 거절한 것과 견적도구를 검토하는 것은 서로 다른 결정입니다. CRM을 진행하지 않는다고 해서 견적도구까지 거절한 것은 아니고, 반대로 견적도구의 분류 수정이 맞았다고 해서 도입을 승인한 것도 아닙니다.\n영업 담당자: 두 사안을 분리해서 보겠습니다. CRM은 월 단위 해지 요구를 충족하지 못한 연간 제안이 거절된 상태이고, 견적도구는 수정본과 세 건의 범위 비교는 확인됐지만 독립 사용 조건을 확인하는 단계입니다.\n진해온: 그리고 CRM 시연은 더 이어갈 필요가 없습니다. 연간 CRM 시연을 종료하고, 가상자료만 사용했으니 원래 파일은 저희가 보관하겠습니다. 시연 계정은 비활성화 요청을 해 주세요.\n영업 담당자: 시연에 사용한 가상자료의 원래 파일은 고객 측에서 보관하고, 제작 영업 CRM 시연 계정은 비활성화 요청을 넣는 것으로 이해했습니다. 다만 요청을 넣는 것과 실제 계정이 닫힌 상태는 구분해서 확인해야겠네요.\n진해온: 맞습니다. 요청만 한 뒤 실제로 비활성화됐는지는 아직 모릅니다. 확인이 되면 알려 주세요. 대신 견적도구 검토용 예시는 계속 사용할 수 있어야 하니, CRM 시연 종료와 그 예시의 사용 가능 여부를 같은 것으로 처리하지 말아 주세요.\n영업 담당자: 견적도구 검토용 예시는 계속 유지하고, CRM 시연 계정의 비활성화 요청은 별도로 진행하겠습니다. 실제 비활성화 여부는 확인이 필요한 상태로 두겠습니다. 두 제품의 사용 상태를 하나의 결정으로 묶지는 않겠습니다.\n진해온: 좋습니다. 견적도구 예시는 남겨 두되, 그 자체로 계약이나 도입이 시작됐다고 보지는 않을 겁니다. 프로젝트 코드로 입력할 수 있는지와 PDF를 내려받을 수 있는지에 대한 답이 있어야 제작팀도 의견을 낼 수 있어요.\n영업 담당자: 현재까지 확인된 사항을 마지막으로 나누어 보면, 제작 영업 CRM은 월 단위 해지 조건을 충족하지 못한 연간 제안이 거절됐고 경쟁사 계약은 확인되지 않았습니다. 견적 버전 자동화는 6월 15일 수정본의 세로형 영상 분리와 세 건의 범위 비교가 확인됐지만, 독립 사용과 PDF 반출 가능 여부는 아직 확인 중입니다.\n진해온: 네, 그 구분이 맞습니다. CRM은 연간 제안 거절과 시연 종료 요청까지 진행된 상태이고, 견적도구는 수정 내용은 확인했지만 도입 여부는 아직 결정하지 않았습니다. 6월 22일까지 두 조건의 답을 받은 뒤 제작팀 의견을 모으겠습니다.\n",
+  "evidence": {
+    "schema_version": "meeting_content.v1",
+    "transcript_sha256": "fcfd30fc6abf0aa84b8f782da59dd238e3e75948c9de34a0c68db7bed8433391",
+    "selected_deal_ids": [
+      "56e34430-ebf2-5b29-86bc-cca406076003",
+      "fce17706-12aa-5c1c-bd6b-144a25b67526"
+    ],
+    "items": [
+      {
+        "segment": {
+          "segment_id": "S0001",
+          "start": 0,
+          "end": 30,
+          "text": "영업 담당자: 오늘은 두 가지를 나누어 확인하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0002",
+          "start": 31,
+          "end": 118,
+          "text": "하나는 제작 영업 CRM의 연간 제안에 대한 현재 결정이고, 다른 하나는 견적 버전 자동화 도구를 기존 CRM과 별개로 사용할 수 있는지에 대한 검토입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0003",
+          "start": 119,
+          "end": 154,
+          "text": "두 사안의 결론이 같다고 전제하지 않고 각각 말씀을 듣겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0004",
+          "start": 155,
+          "end": 162,
+          "text": "진해온: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0005",
+          "start": 163,
+          "end": 201,
+          "text": "우선 제작 영업 CRM의 연간 계약 제안은 진행하지 않기로 했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0006",
+          "start": 202,
+          "end": 237,
+          "text": "대표도 같은 입장이고, 이번 제안은 거절된 것으로 보면 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0007",
+          "start": 238,
+          "end": 293,
+          "text": "비용을 월별로 나누어 청구하는 방식이라도 연간 의무가 남는다면 저희가 원하는 조건과는 맞지 않아요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0008",
+          "start": 294,
+          "end": 372,
+          "text": "영업 담당자: 월 단위로 해지할 수 있어야 한다는 조건이 충족되지 않기 때문에 연간 CRM 제안을 받아들이지 않으신다는 뜻으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0009",
+          "start": 373,
+          "end": 423,
+          "text": "단순히 청구 주기만 월별로 바꾸는 방식은 원하는 해지 조건을 해결하지 못한다는 말씀이시죠."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0010",
+          "start": 424,
+          "end": 434,
+          "text": "진해온: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0011",
+          "start": 435,
+          "end": 484,
+          "text": "저희가 거절한 이유는 비용을 어떻게 나누느냐보다 계약 의무가 연간으로 묶이는지 여부예요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0012",
+          "start": 485,
+          "end": 518,
+          "text": "월 단위 해지가 되지 않는다면 비용 분할은 대안이 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0013",
+          "start": 519,
+          "end": 533,
+          "text": "영업 담당자: 알겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0014",
+          "start": 534,
+          "end": 576,
+          "text": "그러면 이 결정은 제작 영업 CRM의 연간 제안에 한정된 것으로 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0015",
+          "start": 577,
+          "end": 679,
+          "text": "CRM은 의뢰, 제안, 계약, 제작 착수를 구분하고 고객 피드백이나 범위 변경을 추적하는 용도로 설명드렸지만, 그 기능이 필요하더라도 현재 계약 조건을 받아들이신다는 의미는 아니군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0016",
+          "start": 680,
+          "end": 717,
+          "text": "진해온: 네, 기능에 대한 관심과 계약 결정은 나누어 봐야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0017",
+          "start": 718,
+          "end": 757,
+          "text": "그리고 다른 회사와 계약했다고 결론 내리기에는 아직 확인된 게 없어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0018",
+          "start": 758,
+          "end": 782,
+          "text": "경쟁사와 계약한 상태라고 보시면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0019",
+          "start": 783,
+          "end": 825,
+          "text": "영업 담당자: 다른 회사와의 계약 여부는 현재 미확인 상태로 이해하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0020",
+          "start": 826,
+          "end": 886,
+          "text": "필요하다면 다음 분기에 다시 검토할 수는 있지만, 지금은 연간 CRM 제안을 거절하신 상황이라는 말씀이시죠."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0021",
+          "start": 887,
+          "end": 898,
+          "text": "진해온: 그렇습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0022",
+          "start": 899,
+          "end": 952,
+          "text": "당장 다른 업체로 결정했다는 뜻은 아니고, 필요하면 다음 분기에 다시 볼 수 있다는 정도입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0023",
+          "start": 953,
+          "end": 988,
+          "text": "지금 회의에서 CRM 계약이 진행된 것으로 이해하면 안 됩니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0024",
+          "start": 989,
+          "end": 999,
+          "text": "영업 담당자: 네."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0025",
+          "start": 1000,
+          "end": 1044,
+          "text": "그럼 CRM 쪽은 여기서 잠시 두고, 견적 버전 자동화 도구를 따로 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0026",
+          "start": 1045,
+          "end": 1136,
+          "text": "이 도구는 촬영일수, 수정회차, 산출물 범위를 입력해 견적 버전을 관리하는 용도이고, CRM 연간 계약을 받아야만 검토할 수 있는 항목으로 묶어 보지는 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0027",
+          "start": 1137,
+          "end": 1160,
+          "text": "진해온: 그 부분은 별도로 보고 있습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0028",
+          "start": 1161,
+          "end": 1205,
+          "text": "6월 15일 수정본에서 세로형 영상이 새로운 산출물로 분리된 것은 확인했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0029",
+          "start": 1206,
+          "end": 1252,
+          "text": "이전에 섞여 보이던 항목이 분리된 점은 확인했고, 세 건의 범위 비교도 맞았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0030",
+          "start": 1253,
+          "end": 1325,
+          "text": "영업 담당자: 6월 15일 수정본에서 세로형 영상이 별도 산출물로 나뉜 점과 세 건의 범위 비교가 맞았다는 점을 확인하신 거군요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0031",
+          "start": 1326,
+          "end": 1396,
+          "text": "그 확인이 곧바로 도입 승인으로 이어지는 것은 아니고, 실제로 독립 사용이 가능한지를 먼저 보셔야 하는 상황으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0032",
+          "start": 1397,
+          "end": 1406,
+          "text": "진해온: 맞아요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0033",
+          "start": 1407,
+          "end": 1463,
+          "text": "분류와 비교가 맞는지는 확인했지만, 견적도구를 독립적으로 쓸 수 있는지는 아직 따로 확인해야 합니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0034",
+          "start": 1464,
+          "end": 1488,
+          "text": "그래서 현재 도입을 승인한 상태는 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0035",
+          "start": 1489,
+          "end": 1576,
+          "text": "영업 담당자: 독립 사용 여부를 판단하려면 기존 CRM에 연결되지 않아도 필요한 항목을 입력하고, 견적 결과를 외부로 꺼낼 수 있어야 하는지가 핵심이겠네요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0036",
+          "start": 1577,
+          "end": 1624,
+          "text": "현재 확인하고 싶은 조건을 구체적으로 말씀해 주시면 그 범위에서 답을 준비하겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0037",
+          "start": 1625,
+          "end": 1657,
+          "text": "진해온: 기존 CRM 없이 사용할 수 있는지가 먼저입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0038",
+          "start": 1658,
+          "end": 1739,
+          "text": "고객명을 반드시 넣어야 하는 구조라면 곤란할 수 있어서, 고객명 대신 프로젝트 코드를 넣고 견적도구를 독립적으로 사용할 수 있는지 확인해 주세요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0039",
+          "start": 1740,
+          "end": 1774,
+          "text": "그리고 만든 견적을 PDF로 내려받을 수 있는지도 중요합니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0040",
+          "start": 1775,
+          "end": 1803,
+          "text": "영업 담당자: 확인할 내용은 두 가지로 정리됩니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0041",
+          "start": 1804,
+          "end": 1884,
+          "text": "기존 CRM을 사용하지 않는 상태에서 고객명 대신 프로젝트 코드로 견적도구를 사용할 수 있는지, 그리고 견적 PDF를 내려받을 수 있는지입니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0042",
+          "start": 1885,
+          "end": 1925,
+          "text": "이 두 조건의 답변을 6월 22일까지 보내 달라는 요청으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0043",
+          "start": 1926,
+          "end": 1933,
+          "text": "진해온: 네."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0044",
+          "start": 1934,
+          "end": 1962,
+          "text": "6월 22일까지 두 조건에 대한 답을 보내 주세요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0045",
+          "start": 1963,
+          "end": 1989,
+          "text": "답을 받은 뒤 제가 제작팀 의견을 모으겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0046",
+          "start": 1990,
+          "end": 2039,
+          "text": "아직 사용 가능 여부를 확인하기 전이므로, 새로운 비용 제안은 그 다음에 받아도 됩니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0047",
+          "start": 2040,
+          "end": 2132,
+          "text": "영업 담당자: 비용 조건을 먼저 제시하는 것이 아니라, 프로젝트 코드 기반의 독립 사용과 견적 PDF 반출 가능 여부를 확인한 뒤에 다음 판단을 하시겠다는 뜻이군요."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0048",
+          "start": 2133,
+          "end": 2182,
+          "text": "두 기능의 가능 여부가 확인되기 전에는 견적도구 도입을 승인한 것으로 볼 수 없겠습니다."
+        },
+        "applicability": {
+          "scope": "meeting_context",
+          "deal_ids": []
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0049",
+          "start": 2183,
+          "end": 2232,
+          "text": "진해온: 네, CRM 계약을 거절한 것과 견적도구를 검토하는 것은 서로 다른 결정입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0050",
+          "start": 2233,
+          "end": 2311,
+          "text": "CRM을 진행하지 않는다고 해서 견적도구까지 거절한 것은 아니고, 반대로 견적도구의 분류 수정이 맞았다고 해서 도입을 승인한 것도 아닙니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0051",
+          "start": 2312,
+          "end": 2337,
+          "text": "영업 담당자: 두 사안을 분리해서 보겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0052",
+          "start": 2338,
+          "end": 2430,
+          "text": "CRM은 월 단위 해지 요구를 충족하지 못한 연간 제안이 거절된 상태이고, 견적도구는 수정본과 세 건의 범위 비교는 확인됐지만 독립 사용 조건을 확인하는 단계입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0053",
+          "start": 2431,
+          "end": 2463,
+          "text": "진해온: 그리고 CRM 시연은 더 이어갈 필요가 없습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0054",
+          "start": 2464,
+          "end": 2512,
+          "text": "연간 CRM 시연을 종료하고, 가상자료만 사용했으니 원래 파일은 저희가 보관하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0055",
+          "start": 2513,
+          "end": 2535,
+          "text": "시연 계정은 비활성화 요청을 해 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0056",
+          "start": 2536,
+          "end": 2618,
+          "text": "영업 담당자: 시연에 사용한 가상자료의 원래 파일은 고객 측에서 보관하고, 제작 영업 CRM 시연 계정은 비활성화 요청을 넣는 것으로 이해했습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0057",
+          "start": 2619,
+          "end": 2659,
+          "text": "다만 요청을 넣는 것과 실제 계정이 닫힌 상태는 구분해서 확인해야겠네요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0058",
+          "start": 2660,
+          "end": 2670,
+          "text": "진해온: 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0059",
+          "start": 2671,
+          "end": 2700,
+          "text": "요청만 한 뒤 실제로 비활성화됐는지는 아직 모릅니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0060",
+          "start": 2701,
+          "end": 2715,
+          "text": "확인이 되면 알려 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0061",
+          "start": 2716,
+          "end": 2795,
+          "text": "대신 견적도구 검토용 예시는 계속 사용할 수 있어야 하니, CRM 시연 종료와 그 예시의 사용 가능 여부를 같은 것으로 처리하지 말아 주세요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0062",
+          "start": 2796,
+          "end": 2858,
+          "text": "영업 담당자: 견적도구 검토용 예시는 계속 유지하고, CRM 시연 계정의 비활성화 요청은 별도로 진행하겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0063",
+          "start": 2859,
+          "end": 2889,
+          "text": "실제 비활성화 여부는 확인이 필요한 상태로 두겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0064",
+          "start": 2890,
+          "end": 2922,
+          "text": "두 제품의 사용 상태를 하나의 결정으로 묶지는 않겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0065",
+          "start": 2923,
+          "end": 2933,
+          "text": "진해온: 좋습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0066",
+          "start": 2934,
+          "end": 2982,
+          "text": "견적도구 예시는 남겨 두되, 그 자체로 계약이나 도입이 시작됐다고 보지는 않을 겁니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0067",
+          "start": 2983,
+          "end": 3047,
+          "text": "프로젝트 코드로 입력할 수 있는지와 PDF를 내려받을 수 있는지에 대한 답이 있어야 제작팀도 의견을 낼 수 있어요."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0068",
+          "start": 3048,
+          "end": 3145,
+          "text": "영업 담당자: 현재까지 확인된 사항을 마지막으로 나누어 보면, 제작 영업 CRM은 월 단위 해지 조건을 충족하지 못한 연간 제안이 거절됐고 경쟁사 계약은 확인되지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0069",
+          "start": 3146,
+          "end": 3231,
+          "text": "견적 버전 자동화는 6월 15일 수정본의 세로형 영상 분리와 세 건의 범위 비교가 확인됐지만, 독립 사용과 PDF 반출 가능 여부는 아직 확인 중입니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0070",
+          "start": 3232,
+          "end": 3251,
+          "text": "진해온: 네, 그 구분이 맞습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0071",
+          "start": 3252,
+          "end": 3328,
+          "text": "CRM은 연간 제안 거절과 시연 종료 요청까지 진행된 상태이고, 견적도구는 수정 내용은 확인했지만 도입 여부는 아직 결정하지 않았습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      },
+      {
+        "segment": {
+          "segment_id": "S0072",
+          "start": 3329,
+          "end": 3367,
+          "text": "6월 22일까지 두 조건의 답을 받은 뒤 제작팀 의견을 모으겠습니다."
+        },
+        "applicability": {
+          "scope": "deal",
+          "deal_ids": [
+            "56e34430-ebf2-5b29-86bc-cca406076003",
+            "fce17706-12aa-5c1c-bd6b-144a25b67526"
+          ]
+        }
+      }
+    ]
+  },
+  "crm_context": {
+    "snapshot_at": "2026-06-19T13:00:00+09:00",
+    "crm_time_basis": "latest_observed_before_this_meeting",
+    "company": {
+      "id": "3e9636f7-09a5-5e8a-97b2-17fa79d596c8",
+      "name": "이음콘텐츠(합성)",
+      "region_code": "seoul"
+    },
+    "contact": {
+      "id": "9100d7ed-045f-5cdc-ba3c-aee4cdaf279c",
+      "name": "진해온(가상)"
+    },
+    "activity": {
+      "id": "ce7fa3b9-b3a0-584a-aa87-09bb4708184c",
+      "starts_at": "2026-06-19T13:00:00+09:00",
+      "title": "연간 CRM 제안 거절과 견적도구 분리 검토"
+    },
+    "deals": [
+      {
+        "id": "56e34430-ebf2-5b29-86bc-cca406076003",
+        "company_id": "company09",
+        "contact_id": "contact09",
+        "title": "제작 영업 CRM",
+        "description": "의뢰·제안·계약·제작 착수를 구분하고 고객 피드백과 범위변경을 추적하는 CRM.",
+        "deal_amount": 20000000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "56e34430-ebf2-5b29-86bc-cca406076003",
+        "observed_state": "월단위해지 대안요청;연간미승인"
+      },
+      {
+        "id": "fce17706-12aa-5c1c-bd6b-144a25b67526",
+        "company_id": "company09",
+        "contact_id": "contact09",
+        "title": "견적 버전 자동화",
+        "description": "촬영일수·수정회차·산출물 범위를 넣어 견적 버전을 관리하는 도구.",
+        "deal_amount": 6500000,
+        "opened_on": "2026-05-29",
+        "stage_code": "needs_validation",
+        "deal_type_code": "new_installation",
+        "sales_deal_id": "fce17706-12aa-5c1c-bd6b-144a25b67526",
+        "observed_state": "신규산출물1건 오분류 수정요청"
+      }
+    ],
+    "previous_reports": [
+      {
+        "sales_deal_id": "56e34430-ebf2-5b29-86bc-cca406076003",
+        "report_date": "2026-06-05",
+        "body": "프로듀서9명의 계약범위·수정회차·제작인계 관리가 목적입니다. 연2,000만 원 제안을 검토하며 월단위 계약 대안과 대표 비용승인이 필요합니다.",
+        "submission_id": "cdc5006b-3dd2-5ff5-808b-2d5b2313f0e7"
+      },
+      {
+        "sales_deal_id": "fce17706-12aa-5c1c-bd6b-144a25b67526",
+        "report_date": "2026-06-05",
+        "body": "기본수정2회 포함·3회차부터 별도견적이며 요청과 추가비 승인은 다릅니다.",
+        "submission_id": "cdc5006b-3dd2-5ff5-808b-2d5b2313f0e7"
+      },
+      {
+        "sales_deal_id": "56e34430-ebf2-5b29-86bc-cca406076003",
+        "report_date": "2026-06-12",
+        "body": "대표는9명 월단위 해지가능안을 우선 요청하며 연간계약은 미승인입니다. 월청구연간의무와월단위해지는다르며 해지후잔여비용조건이핵심입니다. 일회성설정비·월이용료·연간총액의월환산은구분해서제시해야합니다.",
+        "submission_id": "76d48b7a-4b72-5fcf-8f0d-28a896aa9c5b"
+      },
+      {
+        "sales_deal_id": "fce17706-12aa-5c1c-bd6b-144a25b67526",
+        "report_date": "2026-06-12",
+        "body": "3건 중1건의 세로형 영상 추가가 기존 수정으로 잘못분류되어 새산출물로 수정해야 합니다. 다른비율영상은재편집이필요한새산출물이며 단순자막수정과구분합니다. 가상3번프로젝트는촬영2일·기본수정2회·세로형1개추가요청이며 추가비승인·작업착수전입니다. 이전견적승인과새변경안승인은분리하고 승인버전·메일일자를보존해야합니다. 기존고객발송견적PDF는보존하고 내부초안과발송본을구분해야합니다.",
+        "submission_id": "76d48b7a-4b72-5fcf-8f0d-28a896aa9c5b"
+      },
+      {
+        "sales_deal_id": "a887668f-84c1-58ec-a6fb-33a718204ea9",
+        "report_date": "2026-06-12",
+        "body": "교육은 견적분류 수정 후 검토하며 비용·날짜는 미정입니다. 교육기본대상은프로듀서9명이며 재무참석은미확정이고 역할별실습구분이필요합니다.",
+        "submission_id": "76d48b7a-4b72-5fcf-8f0d-28a896aa9c5b"
+      }
+    ],
+    "trade_history": []
+  },
+  "attachments": []
+}

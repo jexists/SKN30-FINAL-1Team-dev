@@ -1,0 +1,179 @@
+{
+  "case_id": "meeting13",
+  "report_kind": "meeting",
+  "facts": [
+    {
+      "id": "meeting13-f01",
+      "claim": "12건 시범에서 제공된 담당자·연락일 누락은0건이며 연락일 미정2건은 미정으로 보존했습니다.",
+      "sales_deal_id": "deal04-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting13.txt",
+          "start": 148,
+          "end": 287,
+          "quote": "영업 담당자: 그 부분은 상담 CRM의 시범 기준으로 확인했습니다. 열두 건을 그대로 살펴본 결과, 제공된 담당자 정보와 연락일 가운데 빠진 건은 없었습니다. 연락일을 아직 정하지 않은 두 건은 날짜를 임의로 넣지 않고 ‘미정’ 상태로 보존했습니다.",
+          "segment_ids": [
+            "S0004",
+            "S0005",
+            "S0006"
+          ]
+        },
+        {
+          "path": "transcripts/meeting13.txt",
+          "start": 580,
+          "end": 677,
+          "quote": "영업 담당자: 시범 자료 기준은 통과한 것으로 확인됩니다. 다만 이 열두 건의 확인이 실제 교육생 등록 실적까지 증명하는 것은 아니므로, 등록 실적은 별도로 확인해야 합니다.",
+          "segment_ids": [
+            "S0014",
+            "S0015"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting13-f01"
+    },
+    {
+      "id": "meeting13-f02",
+      "claim": "1,800만 원 예산 승인 요청은 제출됐지만 결재 중이며 계약은 미체결입니다.",
+      "sales_deal_id": "deal04-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting13.txt",
+          "start": 1364,
+          "end": 1460,
+          "quote": "영업 담당자: 네. 1,800만 원 예산 승인 요청서는 재무팀에 제출됐지만, 현재는 결재 중입니다. 요청서를 보냈다는 사실과 예산 승인이 끝났다는 사실은 구분되어 있습니다.",
+          "segment_ids": [
+            "S0031",
+            "S0032",
+            "S0033"
+          ]
+        },
+        {
+          "path": "transcripts/meeting13.txt",
+          "start": 1555,
+          "end": 1626,
+          "quote": "영업 담당자: 알겠습니다. 현재 계약은 체결되지 않은 상태이고, 서명자는 재무 승인이 나온 다음 지정되는 것으로 이해하겠습니다.",
+          "segment_ids": [
+            "S0037",
+            "S0038"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting13-f02"
+    },
+    {
+      "id": "meeting13-f03",
+      "claim": "교육은 신규4명·기존6명 실습안 검토의 별도 딜이며 발주는 아직 없습니다.",
+      "sales_deal_id": "deal04-3",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting13.txt",
+          "start": 2015,
+          "end": 2121,
+          "quote": "영업 담당자: 상담사 실습 교육은 CRM과 별도로 검토하겠습니다. 신규 네 명에게는 기본 입력을, 기존 여섯 명에게는 등록·변경·취소 상담을 중심으로 한 실습안을 나누어 제안할 수 있습니다.",
+          "segment_ids": [
+            "S0047",
+            "S0048"
+          ]
+        },
+        {
+          "path": "transcripts/meeting13.txt",
+          "start": 2213,
+          "end": 2342,
+          "quote": "영업 담당자: 네, 열 명이라는 숫자가 같아도 두 업무의 상태는 별개입니다. 상담사 실습 교육은 신규 네 명과 기존 여섯 명으로 나눈 안을 먼저 검토하고, 일정과 비용은 그 내용을 본 뒤 판단하는 단계입니다. 현재 발주는 없습니다.",
+          "segment_ids": [
+            "S0051",
+            "S0052",
+            "S0053"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting13-f03"
+    },
+    {
+      "id": "meeting13-f04",
+      "claim": "고객의 결제 발언과 실제 결제확인은 별도로 보존해야 합니다.",
+      "sales_deal_id": "deal04-1",
+      "scope": "deal",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting13.txt",
+          "start": 796,
+          "end": 898,
+          "quote": "영업 담당자: 그래서 상담 메모에는 고객이 결제했다고 말했다는 사실을 남기고, 실제 결제 성공 응답은 별도 필드에서 확인하도록 구분합니다. 두 정보를 하나로 덮어쓰지 않는 방식입니다.",
+          "segment_ids": [
+            "S0018",
+            "S0019"
+          ]
+        },
+        {
+          "path": "transcripts/meeting13.txt",
+          "start": 972,
+          "end": 1071,
+          "quote": "영업 담당자: 네, 시범 자료에도 고객의 말과 실제 확인 결과가 다른 사례가 들어갔습니다. 연동 검증이 끝나기 전에는 회계 담당자의 확인 절차를 유지하는 조건으로 보시면 됩니다.",
+          "segment_ids": [
+            "S0022",
+            "S0023"
+          ]
+        }
+      ],
+      "importance": "context",
+      "event_id": "meeting13-f04"
+    },
+    {
+      "id": "meeting13-f05",
+      "claim": "영업 담당자는6월12일까지10명·1,800만 원·7월1일 개시 예정 계약초안과 교육안을 전달할 예정입니다.",
+      "sales_deal_id": null,
+      "scope": "meeting_context",
+      "source_refs": [
+        {
+          "path": "transcripts/meeting13.txt",
+          "start": 2619,
+          "end": 2734,
+          "quote": "영업 담당자: 6월 12일까지 검토용 계약 초안과 신규·기존 상담사를 나눈 교육안을 보내겠습니다. 계약 초안에는 말씀드린 열 명, 1,800만 원, 7월 1일 개시 예정일을 넣어 확인할 수 있게 하겠습니다.",
+          "segment_ids": [
+            "S0060",
+            "S0061"
+          ]
+        },
+        {
+          "path": "transcripts/meeting13.txt",
+          "start": 3446,
+          "end": 3517,
+          "quote": "영업 담당자: 네. 6월 12일까지 계약 초안과 교육안을 전달드리고, 내부에서는 수신한 항목을 확인해 재무팀에 넘기시면 됩니다.",
+          "segment_ids": [
+            "S0079",
+            "S0080"
+          ]
+        }
+      ],
+      "importance": "required",
+      "event_id": "meeting13-f05"
+    }
+  ],
+  "required_fact_ids": [
+    "meeting13-f01",
+    "meeting13-f02",
+    "meeting13-f03",
+    "meeting13-f05"
+  ],
+  "forbidden_claims": [
+    "입력에 없는 계약·승인·이행 완료·날짜·수치를 확정하지 않습니다.",
+    "다른 거래처·딜의 사실을 혼입하지 않습니다.",
+    "검토 또는 예정인 업무를 계약 확정이나 실제 이행 완료로 표현하지 않는다."
+  ],
+  "missing_information": [],
+  "allowed_derivations": [],
+  "report_expectations": "목적→논의→고객 요구→합의→후속조치. 근거·조건·미정·딜 귀속을 보존합니다.",
+  "reference_policy": "의미·근거 기준이며 참고 본문과 문장이 같을 필요는 없습니다.",
+  "source_quality_observations": {
+    "unsupported_claims": [],
+    "conflicting_claims": [],
+    "evaluation_hint_quotes": []
+  }
+}
