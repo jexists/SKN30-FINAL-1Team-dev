@@ -19,9 +19,11 @@
 [서비스 바로가기](https://d3m90og33enu6v.cloudfront.net/login)
 
 ### Demo Account
-- Email: `test1@playdata.com`
-- Email: `test2@playdata.com`
-- Email: `test3@playdata.com`
+- 팀장 이메일: `leader@playdata.com`
+- 팀원 이메일: `test@playdata.com`
+- 팀원 이메일: `test1@playdata.com`
+- 팀원 이메일: `test2@playdata.com`
+- 팀원 이메일: `test3@playdata.com`
 - Password: `12341234`
 ---
 
